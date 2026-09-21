@@ -1883,7 +1883,7 @@
         }
         if (ball.burnCooldown > 0) ball.burnCooldown--;
 
-        if (ball.roleId === 'magma' && !ball.isClone && !openingAnimation.active) {
+          if (!ONLINE_MODE && ball.roleId === 'magma' && !ball.isClone && !openingAnimation.active) {
           const dist = Math.hypot(ball.x - ball.lastMagmaPos.x, ball.y - ball.lastMagmaPos.y);
           if (dist > 35) {
             magmaPools.push({ x: ball.x, y: ball.y, life: 180, ownerTag: ball.playerTag });
@@ -1896,7 +1896,7 @@
         const pool = magmaPools[i]; pool.life--;
         if (pool.life <= 0) { magmaPools.splice(i, 1); continue; }
         const ownerBall = getMainBall(pool.ownerTag);
-        const isMyPool = (!ONLINE_MODE || (ownerBall && ownerBall.playerTag === onlineRoomData?.me?.side));
+          const isMyPool = !ONLINE_MODE;
 
         if (isMyPool && ownerBall) {
           for (let target of balls) {
@@ -1916,7 +1916,7 @@
           colosseumState.active = false;
         } else {
           const ownerBall = getMainBall(colosseumState.ownerTag);
-          const isMyColosseum = (!ONLINE_MODE || (ownerBall && ownerBall.playerTag === onlineRoomData?.me?.side));
+          const isMyColosseum = !ONLINE_MODE;
 
           if (isMyColosseum && ownerBall) {
             for (let target of balls) {
@@ -1936,7 +1936,7 @@
         if (blackHoleState.timer <= 0) blackHoleState.active = false;
         else {
           const ownerBall = getMainBall(blackHoleState.ownerTag);
-          const isMyHole = (!ONLINE_MODE || (ownerBall && ownerBall.playerTag === onlineRoomData?.me?.side));
+          const isMyHole = !ONLINE_MODE;
           if (isMyHole && ownerBall) {
             for (let target of balls) {
               if (target.isClone || target.playerTag === blackHoleState.ownerTag || target.isDead) continue;
@@ -2169,6 +2169,11 @@
             if (serverState.stats) {
               battleStats = serverState.stats;
             }
+            if (Array.isArray(serverState.magmaPools)) magmaPools = serverState.magmaPools;
+            if (serverState.colosseum) colosseumState = serverState.colosseum;
+            else if (!serverState.opening) colosseumState = { active: false, timer: 0, x: 0, y: 0, ownerTag: null };
+            if (serverState.blackHole) blackHoleState = serverState.blackHole;
+            else if (!serverState.opening) blackHoleState = { active: false, timer: 0, x: 0, y: 0, ownerTag: null };
 
             if (serverState.opening) {
               if (openingAnimation.active) updateOpeningAnimation();
@@ -2271,6 +2276,10 @@
             }
           });
           onlineSocket.on("roomError", (data) => { alert(data.message || "錯誤"); window.location.href = "/"; });
+          onlineSocket.on("battleEnded", (data) => {
+            battleStats = data.stats || battleStats;
+            endGame(data.winnerId, data.loserId);
+          });
           onlineSocket.on("enemyLeft", (data) => { alert(data.message || "對手已離線"); });
         }
       }

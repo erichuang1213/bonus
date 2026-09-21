@@ -2,6 +2,7 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
+const crypto = require("crypto");
 
 const app = express();
 const server = http.createServer(app);
@@ -18,6 +19,13 @@ const roomCleanupTimers = new Map();
 const ARENA_SIZE = 750;
 const BALL_RADIUS = 70;
 const BODY_DAMAGE = 50;
+const MAGMA_POOL_LIFETIME = 180;
+const MAGMA_POOL_DAMAGE = 10;
+const MAGMA_POOL_DAMAGE_INTERVAL = 30;
+const ARENA_DAMAGE = 50;
+const ARENA_DAMAGE_INTERVAL = 30;
+const BLACK_HOLE_DAMAGE = 25;
+const BLACK_HOLE_DAMAGE_INTERVAL = 15;
 const ALLOWED_ROLES = new Set(["speeder", "tank", "frenzy", "magma", "nova", "clone"]);
 const MAX_NAME_LENGTH = 24;
 const MAX_IMAGE_DATA_LENGTH = 300_000;
@@ -44,10 +52,10 @@ function isSafeImageData(value) {
 }
 
 function makeRoomId() {
-  return "room_" + Math.random().toString(36).slice(2, 10);
+  return "room_" + crypto.randomBytes(12).toString("hex");
 }
 function makePlayerKey() {
-  return "pk_" + Math.random().toString(36).slice(2, 12);
+  return "pk_" + crypto.randomBytes(32).toString("base64url");
 }
 function removeFromQueue(socketId) {
   const index = waitingPlayers.findIndex((p) => p.socketId === socketId);
@@ -186,6 +194,14 @@ function addServerEnergy(roomId, ballId, amount) {
         // 3. 設定 2.5 秒 (150 幀) 後的彈開排程器
         enemy.magmaUltTimer = 150;
         enemy.magmaAttackerId = ballId;
+        room.gameState.colosseum = {
+          active: true,
+          timer: 150,
+          x: enemy.x,
+          y: enemy.y,
+          ownerTag: ballId,
+          nextDamageFrame: room.gameState.frame,
+        };
 
         io.to(roomId).emit("triggerUltimate", {
           playerId: ballId,
@@ -205,6 +221,7 @@ function addServerEnergy(roomId, ballId, amount) {
         x: ARENA_SIZE / 2,
         y: ARENA_SIZE / 2,
         ownerTag: ballId,
+        nextDamageFrame: room.gameState.frame,
       };
       io.to(roomId).emit("triggerUltimate", {
         playerId: ballId,
@@ -233,6 +250,21 @@ function applyServerDamage(roomId, targetId, attackerId, damage, energyGain = 0)
   room.gameState.stats[targetId].totalDamageTaken += safeDamage;
   room.gameState.stats[attackerId].totalDamageDealt += safeDamage;
   if (safeEnergyGain > 0) addServerEnergy(roomId, attackerId, safeEnergyGain);
+  if (targetBall.hp <= 0) finishBattle(roomId, attackerId, targetId);
+}
+
+function finishBattle(roomId, winnerId, loserId) {
+  const room = rooms.get(roomId);
+  if (!room || room.phase !== "battle" || !room.gameState) return;
+  room.phase = "finished";
+  room.gameState.winnerId = winnerId;
+  room.gameState.loserId = loserId;
+  io.to(roomId).emit("battleEnded", {
+    winnerId,
+    loserId,
+    stats: room.gameState.stats,
+  });
+  emitRoomState(roomId);
 }
 
 function getBodyDamage(ball) {
@@ -269,6 +301,63 @@ function consumeRateLimit(room, key, limit, windowFrames) {
   room.gameState.rateLimits[key] = record;
   return true;
 }
+
+function updateServerEffects(roomId, room) {
+  const state = room.gameState;
+  const balls = state.balls;
+
+  for (const ball of balls) {
+    if (ball.role !== "magma") continue;
+    const last = ball.lastMagmaPool || { x: ball.x, y: ball.y };
+    if (Math.hypot(ball.x - last.x, ball.y - last.y) > 35) {
+      state.magmaPools.push({
+        x: ball.x,
+        y: ball.y,
+        life: MAGMA_POOL_LIFETIME,
+        ownerTag: ball.id,
+      });
+      ball.lastMagmaPool = { x: ball.x, y: ball.y };
+    }
+  }
+
+  for (let i = state.magmaPools.length - 1; i >= 0; i--) {
+    const pool = state.magmaPools[i];
+    pool.life--;
+    if (pool.life <= 0) state.magmaPools.splice(i, 1);
+  }
+
+  for (const target of balls) {
+    const pool = state.magmaPools.find((candidate) =>
+      candidate.ownerTag !== target.id &&
+      Math.hypot(target.x - candidate.x, target.y - candidate.y) <= BALL_RADIUS + 48,
+    );
+    if (!pool || state.frame < (target.magmaBurnUntil || 0)) continue;
+    target.magmaBurnUntil = state.frame + MAGMA_POOL_DAMAGE_INTERVAL;
+    applyServerDamage(roomId, target.id, pool.ownerTag, MAGMA_POOL_DAMAGE, 1);
+  }
+
+  const arena = state.colosseum;
+  if (arena?.active) {
+    arena.timer--;
+    if (arena.timer <= 0) arena.active = false;
+    else if (state.frame >= arena.nextDamageFrame) {
+      const target = balls.find((ball) => ball.id !== arena.ownerTag);
+      if (target && Math.hypot(target.x - arena.x, target.y - arena.y) < 120) {
+        applyServerDamage(roomId, target.id, arena.ownerTag, ARENA_DAMAGE, 1);
+      }
+      arena.nextDamageFrame = state.frame + ARENA_DAMAGE_INTERVAL;
+    }
+  }
+
+  const blackHole = state.blackHole;
+  if (blackHole?.active && state.frame >= (blackHole.nextDamageFrame || 0)) {
+    const target = balls.find((ball) => ball.id !== blackHole.ownerTag);
+    if (target && Math.hypot(target.x - blackHole.x, target.y - blackHole.y) < BALL_RADIUS + 40) {
+      applyServerDamage(roomId, target.id, blackHole.ownerTag, BLACK_HOLE_DAMAGE, 2);
+    }
+    blackHole.nextDamageFrame = state.frame + BLACK_HOLE_DAMAGE_INTERVAL;
+  }
+}
 function maybeStartBattle(roomId) {
   const room = rooms.get(roomId);
   if (!room || room.phase !== "character-select") return;
@@ -286,6 +375,8 @@ function maybeStartBattle(roomId) {
       frame: 0,
       hitCooldowns: {},
       rateLimits: {},
+      magmaPools: [],
+      colosseum: null,
       openingFrames: 0, // 🟢 新增：進場動畫計時器
       balls: [
         // 🟢 加入 baseSpeed: 12.2 (這是 10 和 -7 向量算出來的預設總速度)
@@ -427,7 +518,7 @@ io.on("connection", (socket) => {
   // 🟢 新增：處理玩家請求重新對戰的邏輯
   socket.on("requestRematch", ({ roomId, playerKey }) => {
     const room = rooms.get(roomId);
-    if (!room || room.phase !== "battle") return;
+    if (!room || room.phase !== "finished") return;
 
     const me = getOwnedPlayer(room, socket, playerKey);
     if (!me) return;
@@ -448,6 +539,10 @@ io.on("connection", (socket) => {
       room.gameState.hitCooldowns = {};
       room.gameState.rateLimits = {};
       room.gameState.blackHole = null;
+      room.gameState.magmaPools = [];
+      room.gameState.colosseum = null;
+      delete room.gameState.winnerId;
+      delete room.gameState.loserId;
 
       // 重置球體狀態 (回到初始座標與血量)
       const p1 = room.players.find((p) => p.side === "p1");
@@ -488,6 +583,7 @@ io.on("connection", (socket) => {
 
       // 將玩家的 rematch 狀態歸零，為下一局做準備
       room.players.forEach((p) => (p.rematchReady = false));
+      room.phase = "battle";
 
       // 通知雙方：「共識達成，重新開戰！」
       io.to(roomId).emit("rematchConfirmed");
@@ -690,6 +786,9 @@ setInterval(() => {
       }
     }); // 👈 確保 forEach 完美閉合
 
+    updateServerEffects(roomId, room);
+    if (room.phase !== "battle") continue;
+
     // --- 主球碰撞結算 ---
     const dx = b2.x - b1.x,
       dy = b2.y - b1.y;
@@ -753,11 +852,14 @@ setInterval(() => {
       frame: room.gameState.frame,
       balls: balls,
       stats: room.gameState.stats,
+      magmaPools: room.gameState.magmaPools,
+      colosseum: room.gameState.colosseum,
+      blackHole: room.gameState.blackHole,
     });
   }
 }, 1000 / 60);
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 server.listen(PORT, () => {
   console.log(`伺服器啟動：http://localhost:${PORT}`);
 });
