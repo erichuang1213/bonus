@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>雙人配對大廳</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at top, #1e293b 0%, #0f172a 45%, #020617 100%);
+      color: #e2e8f0;
+      font-family: "Microsoft JhengHei", sans-serif;
+    }
+
+    .card {
+      width: min(92vw, 560px);
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 30px;
+    }
+
+    .desc {
+      margin: 0 0 20px;
+      color: #94a3b8;
+      line-height: 1.7;
+    }
+
+    label {
+      display: block;
+      margin: 16px 0 8px;
+      font-size: 14px;
+      color: #cbd5e1;
+    }
+
+    input, button {
+      width: 100%;
+      border-radius: 14px;
+      padding: 13px 14px;
+      font-size: 16px;
+    }
+
+    input {
+      border: 1px solid #475569;
+      background: #0b1220;
+      color: #f8fafc;
+    }
+
+    button {
+      margin-top: 22px;
+      border: none;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:hover {
+      filter: brightness(1.05);
+    }
+
+    #status {
+      margin-top: 18px;
+      min-height: 24px;
+      color: #facc15;
+      line-height: 1.7;
+      white-space: pre-line;
+    }
+
+    .tip {
+      margin-top: 14px;
+      color: #94a3b8;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🎮 雙人配對大廳</h1>
+    <p class="desc">
+      這一頁只負責輸入名字和配對。<br />
+      配對成功後，進入 bounce.html 再選角色。
+    </p>
+
+    <label for="playerName">你的名字</label>
+    <input id="playerName" value="玩家1" />
+
+    <button id="matchBtn">開始配對</button>
+
+    <div id="status">尚未開始配對</div>
+
+    <div class="tip">
+      請用兩個分頁或兩台裝置一起測試。<br />
+      配對成功後會自動跳到 bounce.html。
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const playerNameInput = document.getElementById("playerName");
+    const matchBtn = document.getElementById("matchBtn");
+    const statusEl = document.getElementById("status");
+
+    let playerKey = sessionStorage.getItem("playerKey") || "";
+
+    matchBtn.addEventListener("click", () => {
+      const payload = {
+        name: playerNameInput.value.trim() || "玩家",
+        playerKey: playerKey || undefined,
+      };
+
+      statusEl.textContent = "正在配對中...";
+      matchBtn.disabled = true;
+      socket.emit("joinQueue", payload);
+    });
+
+    socket.on("queueJoined", (data) => {
+      statusEl.textContent = data.message || "已進入配對佇列";
+      if (data.playerKey) {
+        playerKey = data.playerKey;
+        sessionStorage.setItem("playerKey", playerKey);
+      }
+    });
+
+    socket.on("gameStart", (data) => {
+      if (data.me && data.me.playerKey) {
+        sessionStorage.setItem("playerKey", data.me.playerKey);
+      }
+
+      sessionStorage.setItem("bounceRoomData", JSON.stringify(data));
+      statusEl.textContent = "配對成功，正在進入對戰頁...";
+
+      setTimeout(() => {
+        window.location.href = "/bounce.html";
+      }, 500);
+    });
+
+    socket.on("roomError", (data) => {
+      statusEl.textContent = data.message || "房間發生錯誤";
+      matchBtn.disabled = false;
+    });
+
+    socket.on("disconnect", () => {
+      if (statusEl.textContent.includes("正在配對")) {
+        statusEl.textContent = "連線中斷，請重新整理後再試一次。";
+        matchBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
