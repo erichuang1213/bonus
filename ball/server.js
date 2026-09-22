@@ -29,7 +29,7 @@ const ARENA_DAMAGE = 50;
 const ARENA_DAMAGE_INTERVAL = 30;
 const BLACK_HOLE_DAMAGE = 25;
 const BLACK_HOLE_DAMAGE_INTERVAL = 15;
-const FRENZY_REFLECT_RATIO = 0.2;
+const FRENZY_REFLECT_RATIO = 0.02;
 const FRENZY_HIT_ENERGY = 5;
 const ALLOWED_ROLES = new Set(["speeder", "tank", "frenzy", "magma", "nova", "clone"]);
 const MAX_NAME_LENGTH = 24;
@@ -256,11 +256,17 @@ function applyServerDamage(roomId, targetId, attackerId, damage, energyGain = 0)
   room.gameState.stats[attackerId].totalDamageDealt += safeDamage;
   if (safeEnergyGain > 0) addServerEnergy(roomId, attackerId, safeEnergyGain);
 
-  // 狂暴的常駐被動：活著承受一次有效傷害時，回能並反射該次傷害的 20%。
+  // 先確認本次正常傷害造成的死亡；死亡後不觸發受擊型被動。
+  if (targetBall.hp <= 0) {
+    finishBattle(roomId, attackerId, targetId);
+    return;
+  }
+
+  // 狂暴的常駐被動：活著承受一次有效傷害時，回能並反射該次傷害的 2%。
   // 直接結算反傷，避免兩名狂暴互相反射造成遞迴傷害。
   if (targetBall.role === "frenzy" && targetBall.hp > 0 && room.phase === "battle") {
     addServerEnergy(roomId, targetId, FRENZY_HIT_ENERGY);
-    const reflectDamage = Math.max(1, Math.round(safeDamage * FRENZY_REFLECT_RATIO));
+    const reflectDamage = safeDamage * FRENZY_REFLECT_RATIO;
     attackerBall.hp = Math.max(0, attackerBall.hp - reflectDamage);
     room.gameState.stats[attackerId].totalDamageTaken += reflectDamage;
     room.gameState.stats[targetId].totalDamageDealt += reflectDamage;
@@ -275,7 +281,6 @@ function applyServerDamage(roomId, targetId, attackerId, damage, energyGain = 0)
       return;
     }
   }
-  if (targetBall.hp <= 0) finishBattle(roomId, attackerId, targetId);
 }
 
 function finishBattle(roomId, winnerId, loserId) {

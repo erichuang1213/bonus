@@ -956,7 +956,7 @@
     const ROLE_VISUALS = {
       speeder: { name: '⚡ 疾風球', desc: '速度極快，血量統一 2000', icon: '⚡', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6b81', '#ff4757'] }, cardStyle: { borderColor: '#ff4757', glowColor: 'rgba(255, 71, 87, 0.4)', nameColor: '#ff4757' } },
       tank: { name: '🛡️ 鐵壁球', desc: '血厚防高，血量統一 2000', icon: '🛡️', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 3, innerGradient: ['#7bed9f', '#2ed573'] }, cardStyle: { borderColor: '#2ed573', glowColor: 'rgba(46, 213, 115, 0.4)', nameColor: '#2ed573' } },
-      frenzy: { name: '🗡️ 狂暴', desc: '常駐反傷 20%，受擊回復 5 能量', icon: '🗡️', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6666', '#ff3333'] }, cardStyle: { borderColor: '#ff3333', glowColor: 'rgba(255, 51, 51, 0.4)', nameColor: '#ff3333' } },
+      frenzy: { name: '🗡️ 狂暴', desc: '常駐反傷 2%，受擊回復 5 能量', icon: '🗡️', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6666', '#ff3333'] }, cardStyle: { borderColor: '#ff3333', glowColor: 'rgba(255, 51, 51, 0.4)', nameColor: '#ff3333' } },
       magma: { name: '🌋 熔岩巨獸', desc: '走過留岩漿，大招展開死亡角鬥場', icon: '🌋', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9f43', '#ee5253'] }, cardStyle: { borderColor: '#ee5253', glowColor: 'rgba(238, 82, 83, 0.4)', nameColor: '#ee5253' } },
       nova: { name: '🌠 幻星', desc: '引力支配者，碰撞具強大斥力，大招開啟黑洞', icon: '🌠', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#00d2d3', '#5f27cd'] }, cardStyle: { borderColor: '#5f27cd', glowColor: 'rgba(95, 39, 205, 0.4)', nameColor: '#5f27cd' } },
       clone: { name: '👥 影分身', desc: '只有此角色擁有大型飛彈與時間靜止領域', icon: '👥', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9ff3', '#ff6b9d'] }, cardStyle: { borderColor: '#ff6b9d', glowColor: 'rgba(255, 107, 157, 0.4)', nameColor: '#ff6b9d' } }
@@ -1133,16 +1133,16 @@
           if (attackerOwner && defenderOwner && eGain > 0) attackerOwner.addEnergy(eGain);
           addDamageStats(attackerOwner?.playerTag, defenderOwner?.playerTag, damage);
 
-          // 狂暴本體的被動：每次承受有效傷害回 5 能量，並反射 20% 給攻擊者。
+          // 狂暴本體的被動：每次承受有效傷害回 5 能量，並反射 2% 給攻擊者。
           if (!defenderBall.isClone && defenderOwner?.roleId === 'frenzy' && defenderBall.hp > 0 && attackerOwner && attackerOwner !== defenderOwner) {
-            const reflectDamage = Math.max(1, Math.round(damage * 0.2));
+            const reflectDamage = damage * 0.02;
             defenderOwner.addEnergy(5);
             attackerOwner.hp = Math.max(0, attackerOwner.hp - reflectDamage);
             addDamageStats(defenderOwner.playerTag, attackerOwner.playerTag, reflectDamage);
             damageTexts.push({
               x: attackerOwner.x + (Math.random() - 0.5) * 40,
               y: attackerOwner.y - 20,
-              text: `反傷 -${reflectDamage}`,
+              text: `反傷 -${Number.isInteger(reflectDamage) ? reflectDamage : reflectDamage.toFixed(1)}`,
               life: 45,
               maxLife: 45
             });
@@ -1370,7 +1370,7 @@
     function getRoleNote(mainBall) {
       if (!mainBall) return '尚未選定角色';
       if (mainBall.roleId === 'clone') return `分身達到 ${CLONE_TRIGGER_COUNT} 個且大招冷卻完成時，觸發時間靜止領域。`;
-      if (mainBall.roleId === 'frenzy') return `被動：反傷 20%，每次受擊 +5 能量。偷速層數 ${mainBall.frenzyStacks || 0} / ${FRENZY_MAX_STACKS}；層數減傷 ${Math.round((mainBall.damageReduction || 0) * 100)}%${mainBall.ultimateTimer > 0 ? `，暴走減傷 40%` : ''}。`;
+      if (mainBall.roleId === 'frenzy') return `被動：反傷 2%，每次受擊 +5 能量。偷速層數 ${mainBall.frenzyStacks || 0} / ${FRENZY_MAX_STACKS}；層數減傷 ${Math.round((mainBall.damageReduction || 0) * 100)}%${mainBall.ultimateTimer > 0 ? `，暴走減傷 40%` : ''}。`;
       if (mainBall.roleId === 'magma') return `走過留下岩漿(3秒)造成持續燃燒。大招展開死亡角鬥場困住對手。`;
       if (mainBall.roleId === 'nova') return `引力支配者，碰撞具備強大斥力。大招開啟黑洞，吸入並撕裂對手。`;
       return mainBall.visual.desc;
@@ -2301,7 +2301,7 @@
             damageTexts.push({
               x: target.x + (Math.random() - 0.5) * 40,
               y: target.y - 20,
-              text: `反傷 -${Math.round(data.damage || 0)}`,
+              text: `反傷 -${Number.isInteger(data.damage) ? data.damage : Number(data.damage || 0).toFixed(1)}`,
               life: 45,
               maxLife: 45
             });
