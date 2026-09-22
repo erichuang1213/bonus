@@ -311,7 +311,11 @@ function updateServerEffects(roomId, room) {
 
   for (const ball of balls) {
     if (ball.role !== "magma") continue;
-    const last = ball.lastMagmaPool || { x: ball.x, y: ball.y };
+    if (!ball.lastMagmaPool) {
+      ball.lastMagmaPool = { x: ball.x, y: ball.y };
+      continue;
+    }
+    const last = ball.lastMagmaPool;
     if (Math.hypot(ball.x - last.x, ball.y - last.y) > 35) {
       state.magmaPools.push({
         x: ball.x,
