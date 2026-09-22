@@ -1138,12 +1138,12 @@
     const diagnosticsPanel = document.getElementById('diagnosticsPanel');
     const diagnosticsReadout = document.getElementById('diagnosticsReadout');
     const btnDiagnosticEffects = document.getElementById('btnDiagnosticEffects');
-    const diagnostics = { startedAt: performance.now(), frameCount: 0, packetCount: 0, lastPacketAt: 0, maxPacketGap: 0, serverTickMs: 0, fps: 0, renderMs: 0 };
+    const diagnostics = { startedAt: performance.now(), frameCount: 0, packetCount: 0, lastPacketAt: 0, lastFrameAt: 0, maxPacketGap: 0, maxFrameGap: 0, slowFrameCount: 0, maxSimulationSteps: 0, serverTickMs: 0, fps: 0, renderMs: 0 };
 
     function renderDiagnostics() {
       if (!DIAGNOSTICS_ENABLED) return;
       diagnosticsPanel.classList.add('is-visible');
-      diagnosticsReadout.innerHTML = `FPS：${diagnostics.fps.toFixed(0)}<br>前端每幀耗時：${diagnostics.renderMs.toFixed(1)} ms<br>同步封包：${diagnostics.packetCount} / 秒<br>封包最大間隔：${diagnostics.maxPacketGap.toFixed(0)} ms<br>伺服器物理間隔：${diagnostics.serverTickMs.toFixed(1)} ms<br>特效：${diagnosticEffectsDisabled ? '已關閉（診斷中）' : '開啟'}`;
+      diagnosticsReadout.innerHTML = `FPS：${diagnostics.fps.toFixed(0)}<br>前端每幀耗時：${diagnostics.renderMs.toFixed(1)} ms<br>最長畫面間隔：${diagnostics.maxFrameGap.toFixed(0)} ms（延遲幀 ${diagnostics.slowFrameCount}）<br>單幀補算物理：${diagnostics.maxSimulationSteps} 步<br>同步封包：${diagnostics.packetCount} / 秒<br>封包最大間隔：${diagnostics.maxPacketGap.toFixed(0)} ms<br>伺服器物理間隔：${diagnostics.serverTickMs.toFixed(1)} ms<br>特效：${diagnosticEffectsDisabled ? '已關閉（診斷中）' : '開啟'}`;
       btnDiagnosticEffects.textContent = diagnosticEffectsDisabled ? '恢復視覺特效' : '暫時關閉視覺特效';
     }
 
@@ -1156,9 +1156,16 @@
       diagnostics.serverTickMs = Number(serverTickMs) || 0;
     }
 
-    function recordDiagnosticsFrame(frameStartedAt) {
+    function recordDiagnosticsFrame(frameStartedAt, simulationSteps) {
       if (!DIAGNOSTICS_ENABLED) return;
       const now = performance.now();
+      if (diagnostics.lastFrameAt) {
+        const frameGap = frameStartedAt - diagnostics.lastFrameAt;
+        diagnostics.maxFrameGap = Math.max(diagnostics.maxFrameGap, frameGap);
+        if (frameGap > 25) diagnostics.slowFrameCount++;
+      }
+      diagnostics.lastFrameAt = frameStartedAt;
+      diagnostics.maxSimulationSteps = Math.max(diagnostics.maxSimulationSteps, simulationSteps);
       diagnostics.frameCount++;
       diagnostics.renderMs = now - frameStartedAt;
       if (now - diagnostics.startedAt < 1000) return;
@@ -1168,6 +1175,9 @@
       diagnostics.frameCount = 0;
       diagnostics.packetCount = 0;
       diagnostics.maxPacketGap = 0;
+      diagnostics.maxFrameGap = 0;
+      diagnostics.slowFrameCount = 0;
+      diagnostics.maxSimulationSteps = 0;
     }
 
     if (DIAGNOSTICS_ENABLED) {
@@ -2184,6 +2194,7 @@
       lastTime = currentTime;
       if (deltaTime > 250) deltaTime = 250;
 
+      let simulationSteps = 0;
       if (hitStopFrames > 0) {
         hitStopFrames--;
         accumulator = 0;
@@ -2195,6 +2206,7 @@
           } else {
             if (!ONLINE_MODE) update();
           }
+          simulationSteps++;
           accumulator -= TIME_STEP;
         }
       }
@@ -2261,7 +2273,7 @@
       }
 
       ctx.restore();
-      recordDiagnosticsFrame(frameStartedAt);
+      recordDiagnosticsFrame(frameStartedAt, simulationSteps);
       animationId = requestAnimationFrame(gameLoop);
     }
 
