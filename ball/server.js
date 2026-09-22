@@ -32,6 +32,9 @@ const BLACK_HOLE_DAMAGE_INTERVAL = 15;
 const EFFECTS_BROADCAST_INTERVAL = 3;
 const FRENZY_REFLECT_RATIO = 0.02;
 const FRENZY_HIT_ENERGY = 5;
+const FRENZY_ULTIMATE_DURATION = 180;
+const FRENZY_ULTIMATE_SPEED = 50;
+const FRENZY_ULTIMATE_DAMAGE_REDUCE = 0.40;
 const ALLOWED_ROLES = new Set(["speeder", "tank", "frenzy", "magma", "nova", "clone"]);
 const MAX_NAME_LENGTH = 24;
 const MAX_IMAGE_DATA_LENGTH = 300_000;
@@ -235,13 +238,19 @@ function addServerEnergy(roomId, ballId, amount) {
         targetX: ARENA_SIZE / 2,
         targetY: ARENA_SIZE / 2,
       });
-    } else {
+    } else if (ball.role === "frenzy") {
       ball.ultimateNonce = (ball.ultimateNonce || 0) + 1;
+      ball.frenzyUltimateTimer = FRENZY_ULTIMATE_DURATION;
+      const currentSpeed = Math.hypot(ball.vx, ball.vy) || 1;
+      ball.vx = (ball.vx / currentSpeed) * FRENZY_ULTIMATE_SPEED;
+      ball.vy = (ball.vy / currentSpeed) * FRENZY_ULTIMATE_SPEED;
       io.to(roomId).emit("triggerUltimate", {
         playerId: ballId,
-        role: ball.role,
+        role: "frenzy",
         ultimateNonce: ball.ultimateNonce,
       });
+    } else {
+      // 其他尚未實作大招的角色滿能量後僅重置能量，不能假裝有大招效果。
     }
   } // 結束 if (ball.energy >= 100)
 } // 結束 function addServerEnergy
@@ -257,9 +266,13 @@ function applyServerDamage(roomId, targetId, attackerId, damage, energyGain = 0)
   const attackerBall = room.gameState.balls.find((ball) => ball.id === attackerId);
   if (!targetBall || !attackerBall || targetId === attackerId) return;
 
-  targetBall.hp = Math.max(0, targetBall.hp - safeDamage);
-  room.gameState.stats[targetId].totalDamageTaken += safeDamage;
-  room.gameState.stats[attackerId].totalDamageDealt += safeDamage;
+  const frenzyReduction = targetBall.role === "frenzy" && targetBall.frenzyUltimateTimer > 0
+    ? FRENZY_ULTIMATE_DAMAGE_REDUCE
+    : 0;
+  const appliedDamage = Math.max(0, Math.round(safeDamage * (1 - frenzyReduction)));
+  targetBall.hp = Math.max(0, targetBall.hp - appliedDamage);
+  room.gameState.stats[targetId].totalDamageTaken += appliedDamage;
+  room.gameState.stats[attackerId].totalDamageDealt += appliedDamage;
   if (safeEnergyGain > 0) addServerEnergy(roomId, attackerId, safeEnergyGain);
 
   // 先確認本次正常傷害造成的死亡；死亡後不觸發受擊型被動。
@@ -272,7 +285,7 @@ function applyServerDamage(roomId, targetId, attackerId, damage, energyGain = 0)
   // 直接結算反傷，避免兩名狂暴互相反射造成遞迴傷害。
   if (targetBall.role === "frenzy" && targetBall.hp > 0 && room.phase === "battle") {
     addServerEnergy(roomId, targetId, FRENZY_HIT_ENERGY);
-    const reflectDamage = safeDamage * FRENZY_REFLECT_RATIO;
+    const reflectDamage = appliedDamage * FRENZY_REFLECT_RATIO;
     attackerBall.hp = Math.max(0, attackerBall.hp - reflectDamage);
     room.gameState.stats[attackerId].totalDamageTaken += reflectDamage;
     room.gameState.stats[targetId].totalDamageDealt += reflectDamage;
@@ -433,6 +446,7 @@ function maybeStartBattle(roomId) {
           ultimateNonce: 0,
           role: p1.selectedRole,
           rootTimer: 0,
+          frenzyUltimateTimer: 0,
         },
         {
           id: "p2",
@@ -447,6 +461,7 @@ function maybeStartBattle(roomId) {
           ultimateNonce: 0,
           role: p2.selectedRole,
           rootTimer: 0,
+          frenzyUltimateTimer: 0,
         },
       ],
       stats: {
@@ -609,6 +624,7 @@ io.on("connection", (socket) => {
           ultimateNonce: 0,
           role: p1.selectedRole,
           rootTimer: 0,
+          frenzyUltimateTimer: 0,
         },
         {
           id: "p2",
@@ -623,6 +639,7 @@ io.on("connection", (socket) => {
           ultimateNonce: 0,
           role: p2.selectedRole,
           rootTimer: 0,
+          frenzyUltimateTimer: 0,
         },
       ];
 
@@ -744,6 +761,17 @@ setInterval(() => {
     }
 
     balls.forEach((ball) => {
+      // 狂暴大招必須在伺服器維護，否則每幀位置同步會覆蓋前端的速度效果。
+      if (ball.frenzyUltimateTimer > 0) {
+        ball.frenzyUltimateTimer--;
+        if (ball.frenzyUltimateTimer <= 0) {
+          const currentSpeed = Math.hypot(ball.vx, ball.vy) || 1;
+          const normalSpeed = ball.baseSpeed || 12.2;
+          ball.vx = (ball.vx / currentSpeed) * normalSpeed;
+          ball.vy = (ball.vy / currentSpeed) * normalSpeed;
+        }
+      }
+
       // 🟢 熔岩巨獸：大招 2.5 秒倒數與極速擊退觸發
       if (ball.magmaUltTimer !== undefined && ball.magmaUltTimer > 0) {
         ball.magmaUltTimer--;

@@ -2291,6 +2291,15 @@
             alpha = fade * 0.9;
           }
           const renderedPosition = getRenderedBallPosition(ball);
+          if (ball.roleId === 'frenzy' && !ball.isClone && ball.ultimateTimer > 0) {
+            const pulse = Math.sin(gameFrame * 0.2) * 0.3 + 0.7;
+            ctx.save();
+            ctx.beginPath(); ctx.arc(renderedPosition.x, renderedPosition.y, ball.radius + 10, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(255, 215, 0, ${pulse})`; ctx.lineWidth = 4; ctx.stroke();
+            ctx.beginPath(); ctx.arc(renderedPosition.x, renderedPosition.y, ball.radius + 5, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 215, 0, ${pulse * 0.15})`; ctx.fill();
+            ctx.restore();
+          }
           ball.drawAt(renderedPosition.x, renderedPosition.y, 1, alpha);
         }
         for (let p of projectiles) p.draw();
@@ -2506,6 +2515,10 @@
               const serverUltimateNonce = Number(serverBall.ultimateNonce) || 0;
               if (serverBall.role === 'frenzy' && serverUltimateNonce > (localBall.serverUltimateNonce || 0)) {
                 triggerFrenzyUltimate(localBall);
+              }
+              if (serverBall.role === 'frenzy') {
+                localBall.ultimateTimer = Math.max(0, Number(serverBall.frenzyUltimateTimer) || 0);
+                localBall.isUltimateActive = localBall.ultimateTimer > 0;
               }
               localBall.serverUltimateNonce = serverUltimateNonce;
             };
