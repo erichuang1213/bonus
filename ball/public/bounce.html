@@ -1194,6 +1194,25 @@
     let accumulator = 0;
     const TIME_STEP = 1000 / 60;
 
+    function savePreviousPhysicsPositions() {
+      if (ONLINE_MODE) return;
+      for (const ball of balls) {
+        ball.previousPhysicsX = ball.x;
+        ball.previousPhysicsY = ball.y;
+      }
+    }
+
+    function getRenderedBallPosition(ball) {
+      if (ONLINE_MODE || !Number.isFinite(ball.previousPhysicsX) || !Number.isFinite(ball.previousPhysicsY)) {
+        return { x: ball.x, y: ball.y };
+      }
+      const blend = Math.max(0, Math.min(1, accumulator / TIME_STEP));
+      return {
+        x: ball.previousPhysicsX + (ball.x - ball.previousPhysicsX) * blend,
+        y: ball.previousPhysicsY + (ball.y - ball.previousPhysicsY) * blend,
+      };
+    }
+
     function triggerImpact(damage) {
       // 一般接觸太頻繁，隨機平移整個畫布會被誤認為遊戲卡頓。
       // 命中停頓已完全移除；只有罕見的大飛彈保留極輕微的畫面回饋。
@@ -2207,7 +2226,10 @@
           if (openingAnimation.active) {
             if (!ONLINE_MODE) updateOpeningAnimation();
           } else {
-            if (!ONLINE_MODE) update();
+            if (!ONLINE_MODE) {
+              savePreviousPhysicsPositions();
+              update();
+            }
           }
           simulationSteps++;
           // 只保留不足一個物理步驟的餘數；不以同一畫面補跑兩次物理。
@@ -2239,7 +2261,8 @@
             const fade = Math.max(0, 1 - Math.max(0, timeStopState.frame - TIME_STOP_ERASE_FRAME + 14) / 14);
             alpha = fade * 0.9;
           }
-          ball.drawAt(ball.x, ball.y, 1, alpha);
+          const renderedPosition = getRenderedBallPosition(ball);
+          ball.drawAt(renderedPosition.x, renderedPosition.y, 1, alpha);
         }
         for (let p of projectiles) p.draw();
 
