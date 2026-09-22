@@ -1195,6 +1195,9 @@
     let lastTime = 0;
     let accumulator = 0;
     const TIME_STEP = 1000 / 60;
+    // 防回歸規則：手機 60Hz 的 rAF 時間有微小誤差，不能用嚴格的 TIME_STEP
+    // 當門檻，也不能用 while 在同一畫面補跑。否則會重現假性 30 FPS 卡頓。
+    const SINGLE_PLAYER_UPDATE_THRESHOLD = TIME_STEP * 0.75;
 
     function savePreviousPhysicsPositions() {
       if (ONLINE_MODE) return;
@@ -2221,10 +2224,8 @@
         accumulator = 0;
       } else {
         accumulator += deltaTime;
-        // 60Hz 螢幕每次回呼都應有一個物理更新。精確比較 16.666…ms
-        // 會在部分畫面落到門檻下，形成「0 步、1 步」交替的 30 FPS 手感。
-        // 留一點容差給瀏覽器計時誤差；120Hz 螢幕仍會自然隔幀更新。
-        if (accumulator >= TIME_STEP * 0.75) {
+        // 60Hz 螢幕每次回呼都應有一個物理更新；120Hz 螢幕則自然隔幀更新。
+        if (accumulator >= SINGLE_PLAYER_UPDATE_THRESHOLD) {
           if (openingAnimation.active) {
             if (!ONLINE_MODE) updateOpeningAnimation();
           } else {
