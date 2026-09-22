@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: erichuang1213-ball
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: cd ball && npm ci
+    startCommand: cd ball && npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production

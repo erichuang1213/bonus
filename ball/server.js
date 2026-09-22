@@ -9,6 +9,9 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, "public")));
+app.get("/health", (_request, response) => {
+  response.status(200).json({ status: "ok" });
+});
 
 const waitingPlayers = [];
 const rooms = new Map();
