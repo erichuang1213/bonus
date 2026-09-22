@@ -1103,7 +1103,7 @@
     const OPENING_APPROACH_FRAMES = 48, OPENING_IMPACT_FRAMES = 120, OPENING_COUNTDOWN_FRAMES = 240, TIME_STOP_TOTAL_FRAMES = 96, TIME_STOP_ERASE_FRAME = 34, TIME_STOP_MISSILE_FRAME = 62;
     const LOW_POWER_RENDERING = window.matchMedia('(max-width: 768px)').matches || (navigator.hardwareConcurrency || 8) <= 4;
     const UI_UPDATE_INTERVAL = LOW_POWER_RENDERING ? 12 : 6;
-    const MAX_RENDERED_MAGMA_POOLS = LOW_POWER_RENDERING ? 18 : 48;
+    const MAX_RENDERED_MAGMA_POOLS = LOW_POWER_RENDERING ? 8 : 48;
     const MAX_RENDERED_PROJECTILE_TRAIL = LOW_POWER_RENDERING ? 8 : 16;
 
     const canvas = document.getElementById('gameCanvas'); canvas.width = ARENA_SIZE; canvas.height = ARENA_SIZE; const ctx = canvas.getContext('2d');
@@ -1489,9 +1489,22 @@
       updateSidePanels();
     }
 
+    let cachedGridLayer = null;
+    let cachedGridColor = '';
     function drawGrid() {
-      ctx.strokeStyle = currentTheme.gridColor; ctx.lineWidth = 1;
-      for (let i = 0; i <= GRID_SIZE; i++) { const pos = i * CELL_SIZE; ctx.beginPath(); ctx.moveTo(pos, 0); ctx.lineTo(pos, canvas.height); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, pos); ctx.lineTo(canvas.width, pos); ctx.stroke(); }
+      if (!cachedGridLayer || cachedGridColor !== currentTheme.gridColor) {
+        cachedGridLayer = document.createElement('canvas');
+        cachedGridLayer.width = canvas.width; cachedGridLayer.height = canvas.height;
+        const gridCtx = cachedGridLayer.getContext('2d');
+        gridCtx.strokeStyle = currentTheme.gridColor; gridCtx.lineWidth = 1;
+        for (let i = 0; i <= GRID_SIZE; i++) {
+          const pos = i * CELL_SIZE;
+          gridCtx.beginPath(); gridCtx.moveTo(pos, 0); gridCtx.lineTo(pos, canvas.height); gridCtx.stroke();
+          gridCtx.beginPath(); gridCtx.moveTo(0, pos); gridCtx.lineTo(canvas.width, pos); gridCtx.stroke();
+        }
+        cachedGridColor = currentTheme.gridColor;
+      }
+      ctx.drawImage(cachedGridLayer, 0, 0);
     }
 
     function drawColosseum() {
@@ -1531,17 +1544,31 @@
     }
 
     function drawMagmaPools() {
-      if (magmaPools.length === 0 || !magmaPattern) return;
+      if (magmaPools.length === 0 || (!LOW_POWER_RENDERING && !magmaPattern)) return;
       ctx.save();
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      const matrix = new DOMMatrix().translate(gameFrame * 0.4, gameFrame * 0.2);
-      magmaPattern.setTransform(matrix);
       const poolsByOwner = new Map();
       magmaPools.forEach(pool => {
         const pools = poolsByOwner.get(pool.ownerTag) || [];
         pools.push(pool);
         poolsByOwner.set(pool.ownerTag, pools);
       });
+      if (LOW_POWER_RENDERING) {
+        poolsByOwner.forEach(allPools => {
+          const pools = allPools.slice(-MAX_RENDERED_MAGMA_POOLS);
+          if (pools.length === 0) return;
+          ctx.beginPath(); ctx.moveTo(pools[0].x, pools[0].y);
+          for (let i = 1; i < pools.length; i++) ctx.lineTo(pools[i].x, pools[i].y);
+          ctx.globalAlpha = 0.72;
+          ctx.lineWidth = 54;
+          ctx.strokeStyle = '#b93b28';
+          ctx.stroke();
+        });
+        ctx.restore();
+        return;
+      }
+      const matrix = new DOMMatrix().translate(gameFrame * 0.4, gameFrame * 0.2);
+      magmaPattern.setTransform(matrix);
       poolsByOwner.forEach(allPools => {
         const pools = allPools.slice(-MAX_RENDERED_MAGMA_POOLS);
         if (pools.length === 0) return;
