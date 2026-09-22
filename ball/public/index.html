@@ -84,6 +84,20 @@
     .role-option strong, .role-option small { display: block; }
     .role-option small { margin-top: 5px; color: #94a3b8; line-height: 1.45; }
 
+    .role-detail {
+      margin-top: 14px;
+      padding: 16px;
+      border: 1px solid #334155;
+      border-left: 4px solid var(--role-color, #22c55e);
+      border-radius: 14px;
+      background: rgba(2, 6, 23, 0.75);
+    }
+
+    .role-detail h2 { margin: 0 0 10px; font-size: 20px; color: var(--role-color, #f8fafc); }
+    .role-detail-grid { display: grid; grid-template-columns: 92px 1fr; gap: 8px 12px; font-size: 14px; line-height: 1.55; }
+    .role-detail-grid dt { color: #94a3b8; font-weight: 700; }
+    .role-detail-grid dd { margin: 0; color: #e2e8f0; }
+
     @media (max-width: 430px) {
       .card { padding: 20px; }
       .role-grid { grid-template-columns: 1fr; }
@@ -131,6 +145,7 @@
 
     <label>選擇角色（配對後鎖定）</label>
     <div class="role-grid" id="roleGrid" aria-label="角色選擇"></div>
+    <section class="role-detail" id="roleDetail" aria-live="polite"></section>
 
     <button id="matchBtn">開始配對</button>
 
@@ -149,14 +164,15 @@
     const matchBtn = document.getElementById("matchBtn");
     const statusEl = document.getElementById("status");
     const roleGrid = document.getElementById("roleGrid");
+    const roleDetail = document.getElementById("roleDetail");
 
     const roles = [
-      { id: "speeder", name: "⚡ 疾風球", desc: "高速機動", color: "#ff4757" },
-      { id: "tank", name: "🛡️ 鐵壁球", desc: "穩定防禦", color: "#2ed573" },
-      { id: "frenzy", name: "🗡️ 狂暴", desc: "反傷與受擊回能", color: "#ff3333" },
-      { id: "magma", name: "🌋 熔岩巨獸", desc: "岩漿痕跡與角鬥場", color: "#ee5253" },
-      { id: "nova", name: "🌠 幻星", desc: "引力與黑洞", color: "#5f27cd" },
-      { id: "clone", name: "👥 影分身", desc: "分身與大型飛彈", color: "#ff6b9d" },
+      { id: "speeder", name: "⚡ 疾風球", desc: "基礎碰撞型角色", color: "#ff4757", attack: "碰撞傷害 50", passive: "目前沒有專屬被動。", ultimate: "目前沒有專屬大招。" },
+      { id: "tank", name: "🛡️ 鐵壁球", desc: "基礎碰撞型角色", color: "#2ed573", attack: "碰撞傷害 50", passive: "目前沒有專屬被動。", ultimate: "目前沒有專屬大招。" },
+      { id: "frenzy", name: "🗡️ 狂暴", desc: "反傷、偷速與暴走", color: "#ff3333", attack: "碰撞傷害 50；劍砍傷害 20。", passive: "每次受擊反傷 2%，並回復 5 能量；劍砍可累積偷速與減傷層數。", ultimate: "滿能量暴走 3 秒：速度 50、減傷 40%。" },
+      { id: "magma", name: "🌋 熔岩巨獸", desc: "岩漿痕跡與死亡角鬥場", color: "#ee5253", attack: "碰撞傷害 10；岩漿燃燒傷害 50。", passive: "移動會留下持續 3 秒的岩漿。", ultimate: "將對手困入死亡角鬥場並造成持續傷害。" },
+      { id: "nova", name: "🌠 幻星", desc: "引力控制與黑洞", color: "#5f27cd", attack: "碰撞傷害 50；黑洞傷害 25。", passive: "引力會拉扯附近的對手，碰撞帶有強力斥力。", ultimate: "在場中央生成黑洞，吸入並持續傷害對手。" },
+      { id: "clone", name: "👥 影分身", desc: "飛彈、分身與時間靜止", color: "#ff6b9d", attack: "飛彈傷害 25；大型飛彈傷害 500。", passive: "自動發射飛彈；分身單次碰撞造成 5 傷害。", ultimate: "召喚分身；分身足夠時啟動時間靜止領域與大型飛彈。" },
     ];
     let selectedRole = sessionStorage.getItem("selectedQueueRole") || "speeder";
 
@@ -166,6 +182,7 @@
         const button = document.createElement("button");
         button.type = "button";
         button.className = `role-option${role.id === selectedRole ? " is-selected" : ""}`;
+        button.setAttribute("aria-pressed", String(role.id === selectedRole));
         button.style.setProperty("--role-color", role.color);
         button.innerHTML = `<strong>${role.name}</strong><small>${role.desc}</small>`;
         button.addEventListener("click", () => {
@@ -176,6 +193,9 @@
         });
         roleGrid.appendChild(button);
       });
+      const role = roles.find((item) => item.id === selectedRole) || roles[0];
+      roleDetail.style.setProperty("--role-color", role.color);
+      roleDetail.innerHTML = `<h2>${role.name}：基本資料</h2><dl class="role-detail-grid"><dt>基礎數值</dt><dd>生命 2000／基礎速度 12.2／半徑 70</dd><dt>主要攻擊</dt><dd>${role.attack}</dd><dt>被動</dt><dd>${role.passive}</dd><dt>大招</dt><dd>${role.ultimate}</dd><dt>選擇狀態</dt><dd>目前已選擇；開始配對後將鎖定。</dd></dl>`;
     }
     renderRoleOptions();
 
