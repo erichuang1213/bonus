@@ -2573,7 +2573,24 @@
           });
 
           onlineSocket.on("connect", () => { onlineSocket.emit("rejoinRoom", { roomId: onlineRoomData.roomId, playerKey: onlineRoomData.me.playerKey }); });
-          onlineSocket.on("roomJoined", (data) => { onlineRoomData = data; sessionStorage.setItem("bounceRoomData", JSON.stringify(data)); });
+          onlineSocket.on("roomJoined", (data) => {
+            onlineRoomData = data;
+            sessionStorage.setItem("bounceRoomData", JSON.stringify(data));
+            const lockedRole = data.me?.selectedRole;
+            if (!lockedRole) return;
+
+            // 線上角色已在大廳鎖定；戰場頁只回報載入完成，不再讓玩家二次選角。
+            const lockedIndex = ROLES.findIndex((role) => role.id === lockedRole);
+            if (lockedIndex >= 0) currentIndex = lockedIndex;
+            updateCarousel();
+            onlineSelectionLocked = true;
+            document.getElementById("btnConfirm").disabled = true;
+            document.getElementById("btnPrev").disabled = true;
+            document.getElementById("btnNext").disabled = true;
+            selectTitle.textContent = `角色已鎖定：${ROLE_VISUALS[lockedRole].name}，等待對手載入...`;
+            selectTitle.style.color = "#22c55e";
+            onlineSocket.emit("playerReady", { roomId: onlineRoomData.roomId, playerKey: onlineRoomData.me.playerKey });
+          });
           onlineSocket.on("roomState", (data) => {
             onlineRoomData = { ...onlineRoomData, ...data }; sessionStorage.setItem("bounceRoomData", JSON.stringify(onlineRoomData));
             const p1 = (data.players || []).find(p => p.side === "p1"), p2 = (data.players || []).find(p => p.side === "p2"), mySide = onlineRoomData?.me?.side, enemy = (data.players || []).find(p => p.side !== mySide), me = (data.players || []).find(p => p.side === mySide);

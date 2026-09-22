@@ -58,6 +58,37 @@
       color: #f8fafc;
     }
 
+    .role-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .role-option {
+      min-height: 104px;
+      margin: 0;
+      padding: 12px;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      background: #0b1220;
+      color: #e2e8f0;
+      text-align: left;
+    }
+
+    .role-option.is-selected {
+      border-color: var(--role-color);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--role-color) 35%, transparent), 0 0 18px color-mix(in srgb, var(--role-color) 28%, transparent);
+    }
+
+    .role-option strong, .role-option small { display: block; }
+    .role-option small { margin-top: 5px; color: #94a3b8; line-height: 1.45; }
+
+    @media (max-width: 430px) {
+      .card { padding: 20px; }
+      .role-grid { grid-template-columns: 1fr; }
+    }
+
     button {
       margin-top: 22px;
       border: none;
@@ -91,12 +122,15 @@
   <div class="card">
     <h1>🎮 雙人配對大廳</h1>
     <p class="desc">
-      這一頁只負責輸入名字和配對。<br />
-      配對成功後，進入 bounce.html 再選角色。
+      先選擇名字與角色，再開始配對。<br />
+      配對成功後角色會鎖定，直接進入對戰。
     </p>
 
     <label for="playerName">你的名字</label>
     <input id="playerName" value="玩家1" />
+
+    <label>選擇角色（配對後鎖定）</label>
+    <div class="role-grid" id="roleGrid" aria-label="角色選擇"></div>
 
     <button id="matchBtn">開始配對</button>
 
@@ -104,7 +138,7 @@
 
     <div class="tip">
       請用兩個分頁或兩台裝置一起測試。<br />
-      配對成功後會自動跳到 bounce.html。
+      角色送出後不可更換，請確認再開始配對。
     </div>
   </div>
 
@@ -114,12 +148,43 @@
     const playerNameInput = document.getElementById("playerName");
     const matchBtn = document.getElementById("matchBtn");
     const statusEl = document.getElementById("status");
+    const roleGrid = document.getElementById("roleGrid");
+
+    const roles = [
+      { id: "speeder", name: "⚡ 疾風球", desc: "高速機動", color: "#ff4757" },
+      { id: "tank", name: "🛡️ 鐵壁球", desc: "穩定防禦", color: "#2ed573" },
+      { id: "frenzy", name: "🗡️ 狂暴", desc: "反傷與受擊回能", color: "#ff3333" },
+      { id: "magma", name: "🌋 熔岩巨獸", desc: "岩漿痕跡與角鬥場", color: "#ee5253" },
+      { id: "nova", name: "🌠 幻星", desc: "引力與黑洞", color: "#5f27cd" },
+      { id: "clone", name: "👥 影分身", desc: "分身與大型飛彈", color: "#ff6b9d" },
+    ];
+    let selectedRole = sessionStorage.getItem("selectedQueueRole") || "speeder";
+
+    function renderRoleOptions() {
+      roleGrid.innerHTML = "";
+      roles.forEach((role) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `role-option${role.id === selectedRole ? " is-selected" : ""}`;
+        button.style.setProperty("--role-color", role.color);
+        button.innerHTML = `<strong>${role.name}</strong><small>${role.desc}</small>`;
+        button.addEventListener("click", () => {
+          if (matchBtn.disabled) return;
+          selectedRole = role.id;
+          sessionStorage.setItem("selectedQueueRole", selectedRole);
+          renderRoleOptions();
+        });
+        roleGrid.appendChild(button);
+      });
+    }
+    renderRoleOptions();
 
     let playerKey = sessionStorage.getItem("playerKey") || "";
 
     matchBtn.addEventListener("click", () => {
       const payload = {
         name: playerNameInput.value.trim() || "玩家",
+        role: selectedRole,
         playerKey: playerKey || undefined,
       };
 

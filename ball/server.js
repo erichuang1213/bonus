@@ -469,7 +469,11 @@ io.on("connection", (socket) => {
         socketId: socket.id,
         playerKey: playerData.playerKey || makePlayerKey(),
         name: cleanName(playerData.name),
+        selectedRole: ALLOWED_ROLES.has(playerData.role) ? playerData.role : null,
     };
+    if (!player.selectedRole) {
+      return socket.emit("roomError", { message: "請先選擇有效角色再開始配對" });
+    }
 
     if (waitingPlayers.length > 0) {
       const enemy = waitingPlayers.shift();
@@ -483,7 +487,7 @@ io.on("connection", (socket) => {
             playerKey: enemy.playerKey,
             side: "p1",
             name: enemy.name,
-            selectedRole: null,
+            selectedRole: enemy.selectedRole,
             ready: false,
             connected: true,
           },
@@ -492,7 +496,7 @@ io.on("connection", (socket) => {
             playerKey: player.playerKey,
             side: "p2",
             name: player.name,
-            selectedRole: null,
+            selectedRole: player.selectedRole,
             ready: false,
             connected: true,
           },
@@ -541,6 +545,8 @@ io.on("connection", (socket) => {
     if (!room || room.phase !== "character-select") return;
     const me = getOwnedPlayer(room, socket, playerKey);
     if (!me || !ALLOWED_ROLES.has(role) || !isSafeImageData(imageData)) return;
+    // 線上角色在大廳鎖定。此事件只保留給舊頁面相容性，禁止覆寫既有選擇。
+    if (me.selectedRole && me.selectedRole !== role) return;
     me.selectedRole = role;
     me.imageData = imageData || "";
     me.ready = true;
