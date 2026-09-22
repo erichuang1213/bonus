@@ -540,6 +540,26 @@
     .pause-overlay small { font-size: 14px; font-weight: normal; color: #c9d5eb; }
     .pause-overlay.is-visible { display: flex; }
 
+    .diagnostics-panel {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 300;
+      display: none;
+      width: min(300px, calc(100vw - 24px));
+      padding: 12px;
+      border: 1px solid #4ade80;
+      border-radius: 12px;
+      background: rgba(5, 14, 28, 0.94);
+      color: #e6f7ec;
+      font: 12px/1.55 ui-monospace, Consolas, monospace;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .diagnostics-panel.is-visible { display: block; }
+    .diagnostics-panel h3 { margin: 0 0 6px; color: #86efac; font: bold 14px/1.4 "Microsoft JhengHei", sans-serif; }
+    .diagnostics-panel button { width: 100%; margin-top: 8px; padding: 7px 10px; font-size: 13px; background: #2563eb; }
+
     button {
       padding: 10px 22px;
       font-size: 15px;
@@ -987,6 +1007,12 @@
     </div>
   </div>
 
+  <aside class="diagnostics-panel" id="diagnosticsPanel" aria-live="polite">
+    <h3>效能診斷模式</h3>
+    <div id="diagnosticsReadout">等待對戰開始…</div>
+    <button id="btnDiagnosticEffects">暫時關閉視覺特效</button>
+  </aside>
+
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const DEFAULT_THEME = { bgColor: '#1a1a2e', accentColor: '#ffd700', btnPrimary: '#e94560', btnPrimaryHover: '#ff6b81', cardBg: '#16213e', cardBorder: '#0f3460', textColor: '#eeeeee', descColor: '#a0a0a0', statsColor: '#cccccc', hpBarBg: '#0f3460', hpBarBorder: '#333333', hpRedStart: '#ff4d4d', hpRedEnd: '#e94560', hpBlueStart: '#4dabf7', hpBlueEnd: '#00d2ff', energyBarBg: '#1a1a2e', energyBarBorder: '#444444', energyStart: '#ffd700', energyEnd: '#ffaa00', energyFullStart: '#ff5555', energyFullEnd: '#ff0000', canvasBg: '#16213e', roleDisplayBg: '#0f3460', roleDisplayBorder: '#1f4e79', gridColor: '#0f3460' };
@@ -1105,8 +1131,49 @@
     const UI_UPDATE_INTERVAL = LOW_POWER_RENDERING ? 12 : 6;
     const MAX_RENDERED_MAGMA_POOLS = LOW_POWER_RENDERING ? 8 : 48;
     const MAX_RENDERED_PROJECTILE_TRAIL = LOW_POWER_RENDERING ? 8 : 16;
+    const DIAGNOSTICS_ENABLED = new URLSearchParams(window.location.search).has('diagnostics');
+    let diagnosticEffectsDisabled = new URLSearchParams(window.location.search).get('effects') === 'off';
 
     const canvas = document.getElementById('gameCanvas'); canvas.width = ARENA_SIZE; canvas.height = ARENA_SIZE; const ctx = canvas.getContext('2d');
+    const diagnosticsPanel = document.getElementById('diagnosticsPanel');
+    const diagnosticsReadout = document.getElementById('diagnosticsReadout');
+    const btnDiagnosticEffects = document.getElementById('btnDiagnosticEffects');
+    const diagnostics = { startedAt: performance.now(), frameCount: 0, packetCount: 0, lastPacketAt: 0, maxPacketGap: 0, serverTickMs: 0, fps: 0, renderMs: 0 };
+
+    function renderDiagnostics() {
+      if (!DIAGNOSTICS_ENABLED) return;
+      diagnosticsPanel.classList.add('is-visible');
+      diagnosticsReadout.innerHTML = `FPS：${diagnostics.fps.toFixed(0)}<br>前端每幀耗時：${diagnostics.renderMs.toFixed(1)} ms<br>同步封包：${diagnostics.packetCount} / 秒<br>封包最大間隔：${diagnostics.maxPacketGap.toFixed(0)} ms<br>伺服器物理間隔：${diagnostics.serverTickMs.toFixed(1)} ms<br>特效：${diagnosticEffectsDisabled ? '已關閉（診斷中）' : '開啟'}`;
+      btnDiagnosticEffects.textContent = diagnosticEffectsDisabled ? '恢復視覺特效' : '暫時關閉視覺特效';
+    }
+
+    function recordDiagnosticsPacket(serverTickMs) {
+      if (!DIAGNOSTICS_ENABLED) return;
+      const now = performance.now();
+      if (diagnostics.lastPacketAt) diagnostics.maxPacketGap = Math.max(diagnostics.maxPacketGap, now - diagnostics.lastPacketAt);
+      diagnostics.lastPacketAt = now;
+      diagnostics.packetCount++;
+      diagnostics.serverTickMs = Number(serverTickMs) || 0;
+    }
+
+    function recordDiagnosticsFrame(frameStartedAt) {
+      if (!DIAGNOSTICS_ENABLED) return;
+      const now = performance.now();
+      diagnostics.frameCount++;
+      diagnostics.renderMs = now - frameStartedAt;
+      if (now - diagnostics.startedAt < 1000) return;
+      diagnostics.fps = diagnostics.frameCount * 1000 / (now - diagnostics.startedAt);
+      renderDiagnostics();
+      diagnostics.startedAt = now;
+      diagnostics.frameCount = 0;
+      diagnostics.packetCount = 0;
+      diagnostics.maxPacketGap = 0;
+    }
+
+    if (DIAGNOSTICS_ENABLED) {
+      btnDiagnosticEffects.addEventListener('click', () => { diagnosticEffectsDisabled = !diagnosticEffectsDisabled; renderDiagnostics(); });
+      renderDiagnostics();
+    }
 
     let balls = [], projectiles = [], swordFlashEffects = [], isRunning = false, animationId = null, gameOver = false, gameFrame = 0;
     let magmaPools = [];
@@ -1508,7 +1575,7 @@
     }
 
     function drawColosseum() {
-      if (!colosseumState.active) return;
+      if (diagnosticEffectsDisabled || !colosseumState.active) return;
       ctx.save();
       ctx.fillStyle = `rgba(10, 0, 5, 0.75)`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1534,7 +1601,7 @@
     }
 
     function drawBlackHole() {
-      if (!blackHoleState.active) return;
+      if (diagnosticEffectsDisabled || !blackHoleState.active) return;
       ctx.save(); const cx = blackHoleState.x, cy = blackHoleState.y;
       ctx.translate(cx, cy); ctx.rotate(gameFrame * 0.1);
       const grad = ctx.createRadialGradient(0, 0, 30, 0, 0, 150);
@@ -1544,7 +1611,7 @@
     }
 
     function drawMagmaPools() {
-      if (magmaPools.length === 0 || (!LOW_POWER_RENDERING && !magmaPattern)) return;
+      if (diagnosticEffectsDisabled || magmaPools.length === 0 || (!LOW_POWER_RENDERING && !magmaPattern)) return;
       ctx.save();
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       const poolsByOwner = new Map();
@@ -2114,6 +2181,7 @@
 
     function gameLoop(currentTime) {
       if (!isRunning) return;
+      const frameStartedAt = performance.now();
 
       if (!currentTime) currentTime = performance.now();
       let deltaTime = currentTime - lastTime;
@@ -2197,6 +2265,7 @@
       }
 
       ctx.restore();
+      recordDiagnosticsFrame(frameStartedAt);
       animationId = requestAnimationFrame(gameLoop);
     }
 
@@ -2335,6 +2404,7 @@
 
           onlineSocket.on("updateGameState", (serverState) => {
             if (!onlineStarted || !isRunning) return;
+            recordDiagnosticsPacket(serverState.serverTickMs);
 
             if (serverState.stats) {
               battleStats = serverState.stats;

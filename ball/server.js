@@ -703,17 +703,24 @@ io.on("connection", (socket) => {
   });
 });
 
+let lastPhysicsTickAt = Date.now();
+let lastPhysicsTickMs = 1000 / 60;
+
 // 伺服器端物理核心迴圈
 setInterval(() => {
+  const physicsTickNow = Date.now();
+  lastPhysicsTickMs = physicsTickNow - lastPhysicsTickAt;
+  lastPhysicsTickAt = physicsTickNow;
   for (const [roomId, room] of rooms.entries()) {
     if (room.phase !== "battle" || !room.gameState) continue;
 
     if (room.gameState.openingFrames < 240) {
       room.gameState.openingFrames++;
-      io.to(roomId).emit("updateGameState", {
-        opening: true,
-        balls: room.gameState.balls,
-        stats: room.gameState.stats,
+        io.to(roomId).emit("updateGameState", {
+          opening: true,
+          balls: room.gameState.balls,
+          stats: room.gameState.stats,
+          serverTickMs: lastPhysicsTickMs,
       });
       continue;
     }
@@ -906,6 +913,7 @@ setInterval(() => {
       frame: room.gameState.frame,
       balls: balls,
       stats: room.gameState.stats,
+      serverTickMs: lastPhysicsTickMs,
     };
     // 球體位置每幀同步，確保畫面與碰撞判定一致；較大的環境特效才降頻傳送。
     if (room.gameState.frame % EFFECTS_BROADCAST_INTERVAL === 0) {
