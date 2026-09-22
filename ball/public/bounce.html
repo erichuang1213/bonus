@@ -1101,6 +1101,10 @@
     const CLONE_MIN_COUNT = 3, CLONE_MAX_COUNT = 10, CLONE_TRIGGER_COUNT = 5, CLONE_RADIUS_SCALE = 0.72, CLONE_SPEED_SCALE = 0.95, COLLISION_COOLDOWN_FRAMES = 10;
     const SWORD_DAMAGE = 20, SWORD_COOLDOWN = 90, FRENZY_MAX_STACKS = 5, FRENZY_STEAL_SPEED = 1, FRENZY_ULTIMATE_DURATION = 180, FRENZY_DAMAGE_REDUCE_PER_STACK = 0.03, FRENZY_ULTIMATE_DAMAGE_REDUCE = 0.40, FRENZY_ULTIMATE_SPEED = 50, SWORD_RANGE = 180, SWORD_ARC = Math.PI * 2 / 3;
     const OPENING_APPROACH_FRAMES = 48, OPENING_IMPACT_FRAMES = 120, OPENING_COUNTDOWN_FRAMES = 240, TIME_STOP_TOTAL_FRAMES = 96, TIME_STOP_ERASE_FRAME = 34, TIME_STOP_MISSILE_FRAME = 62;
+    const LOW_POWER_RENDERING = window.matchMedia('(max-width: 768px)').matches || (navigator.hardwareConcurrency || 8) <= 4;
+    const UI_UPDATE_INTERVAL = LOW_POWER_RENDERING ? 12 : 6;
+    const MAX_RENDERED_MAGMA_POOLS = LOW_POWER_RENDERING ? 18 : 48;
+    const MAX_RENDERED_PROJECTILE_TRAIL = LOW_POWER_RENDERING ? 8 : 16;
 
     const canvas = document.getElementById('gameCanvas'); canvas.width = ARENA_SIZE; canvas.height = ARENA_SIZE; const ctx = canvas.getContext('2d');
 
@@ -1314,12 +1318,12 @@
         if (this.guaranteedTargetTag) {
           const target = getMainBall(this.guaranteedTargetTag);
           if (target) {
-            this.trail.push({ x: this.x, y: this.y, age: this.life }); if (this.trail.length > 26) this.trail.shift();
+            this.trail.push({ x: this.x, y: this.y, age: this.life }); if (this.trail.length > MAX_RENDERED_PROJECTILE_TRAIL) this.trail.shift();
             const dx = target.x - this.x, dy = target.y - this.y; const dist = Math.sqrt(dx * dx + dy * dy) || 1; const chaseSpeed = 16;
             this.x += dx / dist * chaseSpeed; this.y += dy / dist * chaseSpeed; return;
           }
         }
-        this.trail.push({ x: this.x, y: this.y, age: this.life }); if (this.trail.length > 20) this.trail.shift();
+        this.trail.push({ x: this.x, y: this.y, age: this.life }); if (this.trail.length > MAX_RENDERED_PROJECTILE_TRAIL) this.trail.shift();
         this.x += this.vx; this.y += this.vy;
       }
       drawRasengan() {
@@ -1419,6 +1423,9 @@
     }
     function setPanelAvatar(el, roleId) {
       const visual = ROLE_VISUALS[roleId]; if (!el || !visual) return; const img = visual.image ? loadImage(visual.image) : null;
+      const avatarKey = visual.image || visual.icon;
+      if (el.dataset.avatarKey === avatarKey) return;
+      el.dataset.avatarKey = avatarKey;
       if (img && isImageReady(img)) { el.innerHTML = ''; const cloned = document.createElement('img'); cloned.src = img.src; el.appendChild(cloned); } else el.innerHTML = visual.icon;
     }
     function setBigMissileCdUI(cfg, mainBall) {
@@ -1434,12 +1441,18 @@
       ];
       configs.forEach(cfg => {
         if (!cfg.roleId) return; const baseRole = getRoleData(cfg.roleId); const visual = ROLE_VISUALS[cfg.roleId]; const mainBall = getMainBall(cfg.tag);
-        setPanelAvatar(cfg.avatar, cfg.roleId); cfg.role.textContent = visual.name; cfg.role.style.color = visual.cardStyle.nameColor; cfg.desc.textContent = visual.desc;
+        const staticKey = `${cfg.roleId}:${visual.image || ''}`;
+        if (cfg.role.dataset.staticKey !== staticKey) {
+          cfg.role.dataset.staticKey = staticKey;
+          setPanelAvatar(cfg.avatar, cfg.roleId); cfg.role.textContent = visual.name; cfg.role.style.color = visual.cardStyle.nameColor; cfg.desc.textContent = visual.desc;
+          cfg.atk.textContent = getRoleAttackText(mainBall || { roleId: cfg.roleId });
+          cfg.bigCdWrap.style.display = cfg.roleId === 'clone' ? 'block' : 'none';
+        }
         const hp = mainBall ? Math.max(0, Math.round(mainBall.hp)) : baseRole.hp; const maxHp = mainBall ? mainBall.maxHp : baseRole.hp;
         cfg.hpText.textContent = `${hp} / ${maxHp}`; cfg.hpBar.style.width = `${(hp / maxHp) * 100}%`;
-        cfg.atk.textContent = getRoleAttackText(mainBall || { roleId: cfg.roleId }); cfg.speed.textContent = mainBall ? mainBall.baseSpeed.toFixed(1) : baseRole.speed.toFixed(1);
+        cfg.speed.textContent = mainBall ? mainBall.baseSpeed.toFixed(1) : baseRole.speed.toFixed(1);
         const energy = mainBall ? Math.max(0, Math.round(mainBall.energy)) : 0; cfg.energyText.textContent = `${energy} / ${MAX_ENERGY}`; cfg.energyBar.style.width = `${(energy / MAX_ENERGY) * 100}%`;
-        cfg.bigCdWrap.style.display = cfg.roleId === 'clone' ? 'block' : 'none'; if (cfg.roleId === 'clone') setBigMissileCdUI(cfg, mainBall);
+        if (cfg.roleId === 'clone') setBigMissileCdUI(cfg, mainBall);
         cfg.note.textContent = getRoleNote(mainBall || { roleId: cfg.roleId, playerTag: cfg.tag, visual });
       });
     }
@@ -1523,9 +1536,14 @@
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       const matrix = new DOMMatrix().translate(gameFrame * 0.4, gameFrame * 0.2);
       magmaPattern.setTransform(matrix);
-      const owners = [...new Set(magmaPools.map(p => p.ownerTag))];
-      owners.forEach(owner => {
-        const pools = magmaPools.filter(p => p.ownerTag === owner);
+      const poolsByOwner = new Map();
+      magmaPools.forEach(pool => {
+        const pools = poolsByOwner.get(pool.ownerTag) || [];
+        pools.push(pool);
+        poolsByOwner.set(pool.ownerTag, pools);
+      });
+      poolsByOwner.forEach(allPools => {
+        const pools = allPools.slice(-MAX_RENDERED_MAGMA_POOLS);
         if (pools.length === 0) return;
         ctx.beginPath();
         ctx.moveTo(pools[0].x, pools[0].y);
@@ -2064,7 +2082,7 @@
 
       updateClones();
       checkGameOver();
-      if (!ONLINE_MODE || gameFrame % 3 === 0) updateHpUI();
+      if (!ONLINE_MODE || gameFrame % UI_UPDATE_INTERVAL === 0) updateHpUI();
     }
 
     function interpolateOnlineBalls() {
@@ -2342,7 +2360,6 @@
             syncOnlineBall(getMainBall('p2'), serverState.balls[1]);
 
             // 遊戲邏輯由本機固定更新；收到封包只更新目標狀態，避免延遲時大量補跑而卡頓。
-            updateHpUI();
           });
 
           onlineSocket.on("triggerUltimate", (data) => {
