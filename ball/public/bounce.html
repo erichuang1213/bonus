@@ -1781,7 +1781,7 @@
       const target = getMainBall(ball.playerTag === 'p1' ? 'p2' : 'p1');
       if (!target) return;
       const x = (ball.x + target.x) / 2, y = (ball.y + target.y) / 2;
-      colosseumState = { active: true, timer: 180, x, y, radius: Math.min(300, Math.max(180, Math.hypot(target.x - ball.x, target.y - ball.y) / 2 + 30)), ownerTag: ball.playerTag, nextDamageFrame: gameFrame };
+      colosseumState = { active: true, timer: 180, x, y, radius: Math.min(330, Math.max(240, Math.hypot(target.x - ball.x, target.y - ball.y) / 2 + ball.radius + 20)), ownerTag: ball.playerTag, nextDamageFrame: gameFrame };
     }
 
     function refreshFrenzyStacks(ball, targetBall) {
@@ -1865,8 +1865,10 @@
         b.vx = -bNormal * nx + bTangent * tx; b.vy = -bNormal * ny + bTangent * ty;
 
         const aCurrSpeed = Math.sqrt(a.vx * a.vx + a.vy * a.vy); const bCurrSpeed = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
-        if (aCurrSpeed > 0.001) { a.vx = (a.vx / aCurrSpeed) * a.baseSpeed; a.vy = (a.vy / aCurrSpeed) * a.baseSpeed; }
-        if (bCurrSpeed > 0.001) { b.vx = (b.vx / bCurrSpeed) * b.baseSpeed; b.vy = (b.vy / bCurrSpeed) * b.baseSpeed; }
+        const aTargetSpeed = a.roleId === 'frenzy' && a.ultimateTimer > 0 ? FRENZY_ULTIMATE_SPEED : a.baseSpeed;
+        const bTargetSpeed = b.roleId === 'frenzy' && b.ultimateTimer > 0 ? FRENZY_ULTIMATE_SPEED : b.baseSpeed;
+        if (aCurrSpeed > 0.001) { a.vx = (a.vx / aCurrSpeed) * aTargetSpeed; a.vy = (a.vy / aCurrSpeed) * aTargetSpeed; }
+        if (bCurrSpeed > 0.001) { b.vx = (b.vx / bCurrSpeed) * bTargetSpeed; b.vy = (b.vy / bCurrSpeed) * bTargetSpeed; }
       }
       return true;
     }
@@ -2188,6 +2190,18 @@
 
       if (colosseumState.active) {
         colosseumState.timer--;
+        if (!ONLINE_MODE) {
+          for (const ball of balls) {
+            if (ball.isClone) continue;
+            const dx = ball.x - colosseumState.x, dy = ball.y - colosseumState.y;
+            const distance = Math.hypot(dx, dy) || 1, limit = Math.max(ball.radius, (colosseumState.radius || 240) - ball.radius);
+            if (distance <= limit) continue;
+            const nx = dx / distance, ny = dy / distance;
+            ball.x = colosseumState.x + nx * limit; ball.y = colosseumState.y + ny * limit;
+            const outwardSpeed = ball.vx * nx + ball.vy * ny;
+            if (outwardSpeed > 0) { ball.vx -= 2 * outwardSpeed * nx; ball.vy -= 2 * outwardSpeed * ny; }
+          }
+        }
         if (colosseumState.timer <= 0) {
           colosseumState.active = false;
           const ownerBall = getMainBall(colosseumState.ownerTag);

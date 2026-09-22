@@ -195,7 +195,7 @@ function addServerEnergy(roomId, ballId, amount) {
       if (enemy) {
         const centerX = (ball.x + enemy.x) / 2;
         const centerY = (ball.y + enemy.y) / 2;
-        const radius = Math.min(300, Math.max(180, Math.hypot(enemy.x - ball.x, enemy.y - ball.y) / 2 + 30));
+        const radius = Math.min(330, Math.max(240, Math.hypot(enemy.x - ball.x, enemy.y - ball.y) / 2 + BALL_RADIUS + 20));
         room.gameState.colosseum = {
           active: true,
           timer: 180,
@@ -387,6 +387,21 @@ function updateServerEffects(roomId, room) {
   const arena = state.colosseum;
   if (arena?.active) {
     arena.timer--;
+    // 火山封鎖是實體邊界，不是純視覺圓圈；兩人都只能在環內反彈。
+    for (const ball of balls) {
+      const dx = ball.x - arena.x, dy = ball.y - arena.y;
+      const distance = Math.hypot(dx, dy) || 1;
+      const limit = Math.max(BALL_RADIUS, arena.radius - BALL_RADIUS);
+      if (distance <= limit) continue;
+      const nx = dx / distance, ny = dy / distance;
+      ball.x = arena.x + nx * limit;
+      ball.y = arena.y + ny * limit;
+      const outwardSpeed = ball.vx * nx + ball.vy * ny;
+      if (outwardSpeed > 0) {
+        ball.vx -= 2 * outwardSpeed * nx;
+        ball.vy -= 2 * outwardSpeed * ny;
+      }
+    }
     if (arena.timer <= 0) {
       arena.active = false;
       const target = balls.find((ball) => ball.id !== arena.ownerTag);
@@ -929,7 +944,7 @@ setInterval(() => {
           if (ball.magmaDecayStage > 0) return;
 
           const currentSpeed = Math.hypot(ball.vx, ball.vy);
-          const targetSpeed = 12.2;
+          const targetSpeed = ball.frenzyUltimateTimer > 0 ? FRENZY_ULTIMATE_SPEED : (ball.baseSpeed || 12.2);
           if (currentSpeed > 0.001) {
             ball.vx = (ball.vx / currentSpeed) * targetSpeed;
             ball.vy = (ball.vy / currentSpeed) * targetSpeed;
