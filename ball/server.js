@@ -29,6 +29,7 @@ const ARENA_DAMAGE = 50;
 const ARENA_DAMAGE_INTERVAL = 30;
 const BLACK_HOLE_DAMAGE = 25;
 const BLACK_HOLE_DAMAGE_INTERVAL = 15;
+const STATE_BROADCAST_INTERVAL = 3;
 const FRENZY_REFLECT_RATIO = 0.02;
 const FRENZY_HIT_ENERGY = 5;
 const ALLOWED_ROLES = new Set(["speeder", "tank", "frenzy", "magma", "nova", "clone"]);
@@ -709,11 +710,13 @@ setInterval(() => {
 
     if (room.gameState.openingFrames < 240) {
       room.gameState.openingFrames++;
-      io.to(roomId).emit("updateGameState", {
-        opening: true,
-        balls: room.gameState.balls,
-        stats: room.gameState.stats,
-      });
+      if (room.gameState.openingFrames % STATE_BROADCAST_INTERVAL === 0) {
+        io.to(roomId).emit("updateGameState", {
+          opening: true,
+          balls: room.gameState.balls,
+          stats: room.gameState.stats,
+        });
+      }
       continue;
     }
 
@@ -894,14 +897,16 @@ setInterval(() => {
       }
     }
 
-    io.to(roomId).emit("updateGameState", {
-      frame: room.gameState.frame,
-      balls: balls,
-      stats: room.gameState.stats,
-      magmaPools: room.gameState.magmaPools,
-      colosseum: room.gameState.colosseum,
-      blackHole: room.gameState.blackHole,
-    });
+    if (room.gameState.frame % STATE_BROADCAST_INTERVAL === 0) {
+      io.to(roomId).emit("updateGameState", {
+        frame: room.gameState.frame,
+        balls: balls,
+        stats: room.gameState.stats,
+        magmaPools: room.gameState.magmaPools,
+        colosseum: room.gameState.colosseum,
+        blackHole: room.gameState.blackHole,
+      });
+    }
   }
 }, 1000 / 60);
 

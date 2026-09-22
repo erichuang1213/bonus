@@ -2064,7 +2064,16 @@
 
       updateClones();
       checkGameOver();
-      updateHpUI();
+      if (!ONLINE_MODE || gameFrame % 3 === 0) updateHpUI();
+    }
+
+    function interpolateOnlineBalls() {
+      if (!ONLINE_MODE) return;
+      for (const ball of balls) {
+        if (ball.isClone || !Number.isFinite(ball.serverTargetX) || !Number.isFinite(ball.serverTargetY)) continue;
+        ball.x += (ball.serverTargetX - ball.x) * 0.42;
+        ball.y += (ball.serverTargetY - ball.y) * 0.42;
+      }
     }
 
     function gameLoop(currentTime) {
@@ -2082,9 +2091,10 @@
         accumulator += deltaTime;
         while (accumulator >= TIME_STEP) {
           if (openingAnimation.active) {
-            if (!ONLINE_MODE) updateOpeningAnimation();
+            updateOpeningAnimation();
           } else {
-            if (!ONLINE_MODE) update();
+            interpolateOnlineBalls();
+            update();
           }
           accumulator -= TIME_STEP;
         }
@@ -2301,7 +2311,6 @@
             else if (!serverState.opening) blackHoleState = { active: false, timer: 0, x: 0, y: 0, ownerTag: null };
 
             if (serverState.opening) {
-              if (openingAnimation.active) updateOpeningAnimation();
               const p1Ball = getMainBall('p1'), p2Ball = getMainBall('p2');
               if (p1Ball && serverState.balls[0]) { p1Ball.x = serverState.balls[0].x; p1Ball.y = serverState.balls[0].y; }
               if (p2Ball && serverState.balls[1]) { p2Ball.x = serverState.balls[1].x; p2Ball.y = serverState.balls[1].y; }
@@ -2312,8 +2321,13 @@
 
             const syncOnlineBall = (localBall, serverBall) => {
               if (!localBall || !serverBall) return;
-              localBall.x = serverBall.x;
-              localBall.y = serverBall.y;
+              const distanceToServer = Math.hypot(serverBall.x - localBall.x, serverBall.y - localBall.y);
+              if (!Number.isFinite(localBall.serverTargetX) || distanceToServer > 180) {
+                localBall.x = serverBall.x;
+                localBall.y = serverBall.y;
+              }
+              localBall.serverTargetX = serverBall.x;
+              localBall.serverTargetY = serverBall.y;
               localBall.hp = serverBall.hp;
               localBall.energy = serverBall.energy;
 
@@ -2327,19 +2341,8 @@
             syncOnlineBall(getMainBall('p1'), serverState.balls[0]);
             syncOnlineBall(getMainBall('p2'), serverState.balls[1]);
 
-            if (serverState.frame !== undefined) {
-              const missedFrames = serverState.frame - gameFrame;
-              if (missedFrames > 0 && missedFrames < 300) {
-                for (let i = 0; i < missedFrames; i++) update();
-              }
-              else if (missedFrames >= 300) {
-                gameFrame = serverState.frame;
-                update();
-              }
-              else if (missedFrames === 0) update();
-            } else {
-              update();
-            }
+            // 遊戲邏輯由本機固定更新；收到封包只更新目標狀態，避免延遲時大量補跑而卡頓。
+            updateHpUI();
           });
 
           onlineSocket.on("triggerUltimate", (data) => {
