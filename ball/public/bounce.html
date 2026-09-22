@@ -2200,14 +2200,18 @@
         accumulator = 0;
       } else {
         accumulator += deltaTime;
-        while (accumulator >= TIME_STEP) {
+        // 遊戲的物理本來就是以 60 FPS 的單一步驟設計。
+        // rAF 與 16.666…ms 無法完全整除時，while 會週期性跑兩次，
+        // 即使畫面從未掉幀也會讓球突然前進兩格。
+        if (accumulator >= TIME_STEP) {
           if (openingAnimation.active) {
             if (!ONLINE_MODE) updateOpeningAnimation();
           } else {
             if (!ONLINE_MODE) update();
           }
           simulationSteps++;
-          accumulator -= TIME_STEP;
+          // 只保留不足一個物理步驟的餘數；不以同一畫面補跑兩次物理。
+          accumulator %= TIME_STEP;
         }
       }
 
