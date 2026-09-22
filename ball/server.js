@@ -126,7 +126,7 @@ function emitRoomState(roomId) {
 // 🟢 伺服器端統一計算能量與觸發大招
 function addServerEnergy(roomId, ballId, amount) {
   const room = rooms.get(roomId);
-  if (!room || !room.gameState) return;
+  if (!room || room.phase !== "battle" || !room.gameState) return;
   const ball = room.gameState.balls.find((b) => b.id === ballId);
   if (!ball) return;
 
@@ -806,8 +806,11 @@ setInterval(() => {
       const lastCol = room.gameState.lastCollisionFrame || -100;
       if (room.gameState.frame - lastCol >= 10) {
         room.gameState.lastCollisionFrame = room.gameState.frame;
-        applyServerDamage(roomId, "p2", "p1", getBodyDamage(b1), 10);
-        applyServerDamage(roomId, "p1", "p2", getBodyDamage(b2), 10);
+        // 碰撞回能與傷害分開：影分身本體雖然不造成碰撞傷害，仍應獲得碰撞能量。
+        applyServerDamage(roomId, "p2", "p1", getBodyDamage(b1));
+        applyServerDamage(roomId, "p1", "p2", getBodyDamage(b2));
+        addServerEnergy(roomId, "p1", 10);
+        addServerEnergy(roomId, "p2", 10);
         io.to(roomId).emit("bodyCollision");
       }
 
