@@ -1105,6 +1105,7 @@
     const UI_UPDATE_INTERVAL = LOW_POWER_RENDERING ? 12 : 6;
     const MAX_RENDERED_MAGMA_POOLS = LOW_POWER_RENDERING ? 8 : 48;
     const MAX_RENDERED_PROJECTILE_TRAIL = LOW_POWER_RENDERING ? 8 : 16;
+    const ONLINE_PREDICTION_FRAMES = 3;
 
     const canvas = document.getElementById('gameCanvas'); canvas.width = ARENA_SIZE; canvas.height = ARENA_SIZE; const ctx = canvas.getContext('2d');
 
@@ -2115,9 +2116,14 @@
     function interpolateOnlineBalls() {
       if (!ONLINE_MODE) return;
       for (const ball of balls) {
-        if (ball.isClone || !Number.isFinite(ball.serverTargetX) || !Number.isFinite(ball.serverTargetY)) continue;
-        ball.x += (ball.serverTargetX - ball.x) * 0.42;
-        ball.y += (ball.serverTargetY - ball.y) * 0.42;
+        if (ball.isClone || !Number.isFinite(ball.serverStateX) || !Number.isFinite(ball.serverStateY)) continue;
+        const receivedAt = ball.serverStateReceivedAt || performance.now();
+        const elapsedFrames = Math.min(8, (performance.now() - receivedAt) / TIME_STEP);
+        const predictionFrames = ONLINE_PREDICTION_FRAMES + elapsedFrames;
+        const targetX = ball.serverStateX + (ball.serverVX || 0) * predictionFrames;
+        const targetY = ball.serverStateY + (ball.serverVY || 0) * predictionFrames;
+        ball.x += (targetX - ball.x) * 0.56;
+        ball.y += (targetY - ball.y) * 0.56;
       }
     }
 
@@ -2367,12 +2373,15 @@
             const syncOnlineBall = (localBall, serverBall) => {
               if (!localBall || !serverBall) return;
               const distanceToServer = Math.hypot(serverBall.x - localBall.x, serverBall.y - localBall.y);
-              if (!Number.isFinite(localBall.serverTargetX) || distanceToServer > 180) {
+              if (!Number.isFinite(localBall.serverStateX) || distanceToServer > 180) {
                 localBall.x = serverBall.x;
                 localBall.y = serverBall.y;
               }
-              localBall.serverTargetX = serverBall.x;
-              localBall.serverTargetY = serverBall.y;
+              localBall.serverStateX = serverBall.x;
+              localBall.serverStateY = serverBall.y;
+              localBall.serverVX = serverBall.vx;
+              localBall.serverVY = serverBall.vy;
+              localBall.serverStateReceivedAt = performance.now();
               localBall.hp = serverBall.hp;
               localBall.energy = serverBall.energy;
 
@@ -2416,8 +2425,16 @@
             updateHpUI();
           });
 
-          onlineSocket.on("bodyCollision", () => {
+          onlineSocket.on("bodyCollision", (data) => {
             if (!onlineStarted || !isRunning) return;
+            (data?.balls || []).forEach(serverBall => {
+              const ball = getMainBall(serverBall.id);
+              if (!ball) return;
+              ball.x = serverBall.x; ball.y = serverBall.y;
+              ball.serverStateX = serverBall.x; ball.serverStateY = serverBall.y;
+              ball.serverVX = serverBall.vx; ball.serverVY = serverBall.vy;
+              ball.serverStateReceivedAt = performance.now();
+            });
             triggerImpact(BODY_DAMAGE);
             updateHpUI();
           });

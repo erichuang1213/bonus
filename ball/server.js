@@ -841,6 +841,7 @@ setInterval(() => {
     const dist = Math.sqrt(dx * dx + dy * dy);
     const minDist = BALL_RADIUS * 2;
 
+    let bodyCollisionEvent = false;
     if (dist < minDist && dist > 0) {
       const lastCol = room.gameState.lastCollisionFrame || -100;
       if (room.gameState.frame - lastCol >= 10) {
@@ -850,7 +851,7 @@ setInterval(() => {
         applyServerDamage(roomId, "p1", "p2", getBodyDamage(b2));
         addServerEnergy(roomId, "p1", 10);
         addServerEnergy(roomId, "p2", 10);
-        io.to(roomId).emit("bodyCollision");
+        bodyCollisionEvent = true;
       }
 
       const overlap = (minDist - dist) / 2;
@@ -895,6 +896,12 @@ setInterval(() => {
         if (!b1.rootTimer || b1.rootTimer <= 0) fixSpeed(b1);
         if (!b2.rootTimer || b2.rootTimer <= 0) fixSpeed(b2);
       }
+    }
+
+    if (bodyCollisionEvent) {
+      io.to(roomId).emit("bodyCollision", {
+        balls: balls.map(({ id, x, y, vx, vy }) => ({ id, x, y, vx, vy })),
+      });
     }
 
     if (room.gameState.frame % STATE_BROADCAST_INTERVAL === 0) {
