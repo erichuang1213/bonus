@@ -22,10 +22,14 @@ const roomCleanupTimers = new Map();
 const ARENA_SIZE = 750;
 const BALL_RADIUS = 70;
 const BODY_DAMAGE = 50;
-const MAGMA_POOL_LIFETIME = 180;
-const MAGMA_POOL_DAMAGE = 10;
+const MAGMA_POOL_LIFETIME = 210;
+const MAGMA_POOL_DAMAGE = 12;
 const MAGMA_POOL_DAMAGE_INTERVAL = 30;
-const ARENA_DAMAGE = 50;
+const MAGMA_BODY_DAMAGE = 35;
+const MAGMA_STACK_BONUS_DAMAGE = 5;
+const MAGMA_MAX_STACKS = 5;
+const MAGMA_STACK_DURATION = 240;
+const ARENA_DAMAGE = 12;
 const ARENA_DAMAGE_INTERVAL = 30;
 const BLACK_HOLE_DAMAGE = 25;
 const BLACK_HOLE_DAMAGE_INTERVAL = 15;
@@ -35,6 +39,8 @@ const FRENZY_HIT_ENERGY = 5;
 const FRENZY_ULTIMATE_DURATION = 180;
 const FRENZY_ULTIMATE_SPEED = 50;
 const FRENZY_ULTIMATE_DAMAGE_REDUCE = 0.40;
+const MAGMA_MAX_HP = 2400;
+const MAGMA_BASE_SPEED = 9.2;
 const ALLOWED_ROLES = new Set(["speeder", "tank", "frenzy", "magma", "nova", "clone"]);
 const MAX_NAME_LENGTH = 24;
 const MAX_IMAGE_DATA_LENGTH = 300_000;
@@ -50,6 +56,14 @@ const HIT_RULES = {
 
 function cleanName(value) {
   return String(value || "玩家").trim().slice(0, MAX_NAME_LENGTH) || "玩家";
+}
+
+function getServerBaseSpeed(role) {
+  return role === "magma" ? MAGMA_BASE_SPEED : 12.2;
+}
+
+function getServerMaxHp(role) {
+  return role === "magma" ? MAGMA_MAX_HP : 2000;
 }
 
 function isSafeImageData(value) {
@@ -179,35 +193,15 @@ function addServerEnergy(roomId, ballId, amount) {
     } else if (ball.role === "magma") {
       const enemy = room.gameState.balls.find((b) => b.id !== ballId);
       if (enemy) {
-        // 1. 禁錮對手 3 秒 (180 幀)
-        enemy.rootTimer = 180;
-
-        // 🟢 幫熔岩巨獸加上 2.5 秒 (150幀) 的施法定身，保證絕對不會飄走！
-        ball.rootTimer = 150;
-
-        // 2. 瞬間貼臉：將距離設定為 141
-        const angle = Math.random() * Math.PI * 2;
-        ball.x = Math.max(
-          BALL_RADIUS,
-          Math.min(ARENA_SIZE - BALL_RADIUS, enemy.x + Math.cos(angle) * 141),
-        );
-        ball.y = Math.max(
-          BALL_RADIUS,
-          Math.min(ARENA_SIZE - BALL_RADIUS, enemy.y + Math.sin(angle) * 141),
-        );
-
-        // 瞬移後保持靜止
-        ball.vx = 0;
-        ball.vy = 0;
-
-        // 3. 設定 2.5 秒 (150 幀) 後的彈開排程器
-        enemy.magmaUltTimer = 150;
-        enemy.magmaAttackerId = ballId;
+        const centerX = (ball.x + enemy.x) / 2;
+        const centerY = (ball.y + enemy.y) / 2;
+        const radius = Math.min(300, Math.max(180, Math.hypot(enemy.x - ball.x, enemy.y - ball.y) / 2 + 30));
         room.gameState.colosseum = {
           active: true,
-          timer: 150,
-          x: enemy.x,
-          y: enemy.y,
+          timer: 180,
+          x: centerX,
+          y: centerY,
+          radius,
           ownerTag: ballId,
           nextDamageFrame: room.gameState.frame,
         };
@@ -215,12 +209,9 @@ function addServerEnergy(roomId, ballId, amount) {
         io.to(roomId).emit("triggerUltimate", {
           playerId: ballId,
           role: "magma",
-          targetX: enemy.x,
-          targetY: enemy.y,
-          magmaX: ball.x,
-          magmaY: ball.y,
-          magmaVX: 0,
-          magmaVY: 0,
+          targetX: centerX,
+          targetY: centerY,
+          radius,
         });
       }
     } else if (ball.role === "nova") {
@@ -316,9 +307,9 @@ function finishBattle(roomId, winnerId, loserId) {
   emitRoomState(roomId);
 }
 
-function getBodyDamage(ball) {
+function getBodyDamage(ball, target) {
   if (ball.role === "clone") return 0;
-  if (ball.role === "magma") return 10;
+  if (ball.role === "magma") return MAGMA_BODY_DAMAGE + Math.min(MAGMA_MAX_STACKS, target?.magmaStacks || 0) * MAGMA_STACK_BONUS_DAMAGE;
   return BODY_DAMAGE;
 }
 
@@ -380,22 +371,33 @@ function updateServerEffects(roomId, room) {
   }
 
   for (const target of balls) {
+    if (state.frame > (target.magmaStacksUntil || 0)) target.magmaStacks = 0;
     const pool = state.magmaPools.find((candidate) =>
       candidate.ownerTag !== target.id &&
       Math.hypot(target.x - candidate.x, target.y - candidate.y) <= BALL_RADIUS + 48,
     );
     if (!pool || state.frame < (target.magmaBurnUntil || 0)) continue;
     target.magmaBurnUntil = state.frame + MAGMA_POOL_DAMAGE_INTERVAL;
-    applyServerDamage(roomId, target.id, pool.ownerTag, MAGMA_POOL_DAMAGE, 1);
+    target.magmaStacks = Math.min(MAGMA_MAX_STACKS, (target.magmaStacks || 0) + 1);
+    target.magmaStacksUntil = state.frame + MAGMA_STACK_DURATION;
+    const burnDamage = MAGMA_POOL_DAMAGE + (target.magmaStacks - 1) * 2;
+    applyServerDamage(roomId, target.id, pool.ownerTag, burnDamage, 1);
   }
 
   const arena = state.colosseum;
   if (arena?.active) {
     arena.timer--;
-    if (arena.timer <= 0) arena.active = false;
+    if (arena.timer <= 0) {
+      arena.active = false;
+      const target = balls.find((ball) => ball.id !== arena.ownerTag);
+      if (target && target.magmaStacks > 0) {
+        applyServerDamage(roomId, target.id, arena.ownerTag, target.magmaStacks * 20, 0);
+        target.magmaStacks = 0;
+      }
+    }
     else if (state.frame >= arena.nextDamageFrame) {
       const target = balls.find((ball) => ball.id !== arena.ownerTag);
-      if (target && Math.hypot(target.x - arena.x, target.y - arena.y) < 120) {
+      if (target && Math.hypot(target.x - arena.x, target.y - arena.y) < arena.radius) {
         applyServerDamage(roomId, target.id, arena.ownerTag, ARENA_DAMAGE, 1);
       }
       arena.nextDamageFrame = state.frame + ARENA_DAMAGE_INTERVAL;
@@ -437,11 +439,11 @@ function maybeStartBattle(roomId) {
           id: "p1",
           x: 175,
           y: 575,
-          vx: 10,
-          vy: -7,
-          baseSpeed: 12.2,
-          hp: 2000,
-          maxHp: 2000,
+          vx: getServerBaseSpeed(p1.selectedRole) * 10 / 12.2,
+          vy: getServerBaseSpeed(p1.selectedRole) * -7 / 12.2,
+          baseSpeed: getServerBaseSpeed(p1.selectedRole),
+          hp: getServerMaxHp(p1.selectedRole),
+          maxHp: getServerMaxHp(p1.selectedRole),
           energy: 0,
           ultimateNonce: 0,
           role: p1.selectedRole,
@@ -452,11 +454,11 @@ function maybeStartBattle(roomId) {
           id: "p2",
           x: 575,
           y: 175,
-          vx: -10,
-          vy: 7,
-          baseSpeed: 12.2,
-          hp: 2000,
-          maxHp: 2000,
+          vx: getServerBaseSpeed(p2.selectedRole) * -10 / 12.2,
+          vy: getServerBaseSpeed(p2.selectedRole) * 7 / 12.2,
+          baseSpeed: getServerBaseSpeed(p2.selectedRole),
+          hp: getServerMaxHp(p2.selectedRole),
+          maxHp: getServerMaxHp(p2.selectedRole),
           energy: 0,
           ultimateNonce: 0,
           role: p2.selectedRole,
@@ -615,11 +617,11 @@ io.on("connection", (socket) => {
           id: "p1",
           x: 175,
           y: 575,
-          vx: 10,
-          vy: -7,
-          baseSpeed: 12.2,
-          hp: 2000,
-          maxHp: 2000,
+          vx: getServerBaseSpeed(p1.selectedRole) * 10 / 12.2,
+          vy: getServerBaseSpeed(p1.selectedRole) * -7 / 12.2,
+          baseSpeed: getServerBaseSpeed(p1.selectedRole),
+          hp: getServerMaxHp(p1.selectedRole),
+          maxHp: getServerMaxHp(p1.selectedRole),
           energy: 0,
           ultimateNonce: 0,
           role: p1.selectedRole,
@@ -630,11 +632,11 @@ io.on("connection", (socket) => {
           id: "p2",
           x: 575,
           y: 175,
-          vx: -10,
-          vy: 7,
-          baseSpeed: 12.2,
-          hp: 2000,
-          maxHp: 2000,
+          vx: getServerBaseSpeed(p2.selectedRole) * -10 / 12.2,
+          vy: getServerBaseSpeed(p2.selectedRole) * 7 / 12.2,
+          baseSpeed: getServerBaseSpeed(p2.selectedRole),
+          hp: getServerMaxHp(p2.selectedRole),
+          maxHp: getServerMaxHp(p2.selectedRole),
           energy: 0,
           ultimateNonce: 0,
           role: p2.selectedRole,
@@ -886,8 +888,10 @@ setInterval(() => {
       if (room.gameState.frame - lastCol >= 10) {
         room.gameState.lastCollisionFrame = room.gameState.frame;
         // 碰撞回能與傷害分開：影分身本體雖然不造成碰撞傷害，仍應獲得碰撞能量。
-        applyServerDamage(roomId, "p2", "p1", getBodyDamage(b1));
-        applyServerDamage(roomId, "p1", "p2", getBodyDamage(b2));
+        applyServerDamage(roomId, "p2", "p1", getBodyDamage(b1, b2));
+        applyServerDamage(roomId, "p1", "p2", getBodyDamage(b2, b1));
+        if (b1.role === "magma") b2.magmaStacks = Math.max(0, (b2.magmaStacks || 0) - 2);
+        if (b2.role === "magma") b1.magmaStacks = Math.max(0, (b1.magmaStacks || 0) - 2);
         addServerEnergy(roomId, "p1", 10);
         addServerEnergy(roomId, "p2", 10);
         bodyCollisionEvent = true;

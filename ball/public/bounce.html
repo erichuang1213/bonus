@@ -1027,7 +1027,7 @@
       speeder: { name: '⚡ 疾風球', desc: '速度極快，血量統一 2000', icon: '⚡', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6b81', '#ff4757'] }, cardStyle: { borderColor: '#ff4757', glowColor: 'rgba(255, 71, 87, 0.4)', nameColor: '#ff4757' } },
       tank: { name: '🛡️ 鐵壁球', desc: '血厚防高，血量統一 2000', icon: '🛡️', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 3, innerGradient: ['#7bed9f', '#2ed573'] }, cardStyle: { borderColor: '#2ed573', glowColor: 'rgba(46, 213, 115, 0.4)', nameColor: '#2ed573' } },
       frenzy: { name: '🗡️ 狂暴', desc: '常駐反傷 2%，受擊回復 5 能量', icon: '🗡️', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6666', '#ff3333'] }, cardStyle: { borderColor: '#ff3333', glowColor: 'rgba(255, 51, 51, 0.4)', nameColor: '#ff3333' } },
-      magma: { name: '🌋 熔岩巨獸', desc: '走過留岩漿，大招展開死亡角鬥場', icon: '🌋', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9f43', '#ee5253'] }, cardStyle: { borderColor: '#ee5253', glowColor: 'rgba(238, 82, 83, 0.4)', nameColor: '#ee5253' } },
+      magma: { name: '🌋 熔岩巨獸', desc: '鋪設岩漿、灼燒爆發與火山封鎖', icon: '🌋', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9f43', '#ee5253'] }, cardStyle: { borderColor: '#ee5253', glowColor: 'rgba(238, 82, 83, 0.4)', nameColor: '#ee5253' } },
       nova: { name: '🌠 幻星', desc: '引力支配者，碰撞具強大斥力，大招開啟黑洞', icon: '🌠', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#00d2d3', '#5f27cd'] }, cardStyle: { borderColor: '#5f27cd', glowColor: 'rgba(95, 39, 205, 0.4)', nameColor: '#5f27cd' } },
       clone: { name: '👥 影分身', desc: '只有此角色擁有大型飛彈與時間靜止領域', icon: '👥', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9ff3', '#ff6b9d'] }, cardStyle: { borderColor: '#ff6b9d', glowColor: 'rgba(255, 107, 157, 0.4)', nameColor: '#ff6b9d' } }
     };
@@ -1036,7 +1036,7 @@
       { id: 'speeder', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'none' },
       { id: 'tank', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'none' },
       { id: 'frenzy', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'sword' },
-      { id: 'magma', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'magma' },
+      { id: 'magma', hp: 2400, speed: 9.2, radius: BASE_RADIUS, skill: 'magma' },
       { id: 'nova', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'nova' },
       { id: 'clone', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'missile' }
     ];
@@ -1261,7 +1261,7 @@
       tCtx.drawImage(magmaTexture, 0, 0, 256, 256);
       magmaPattern = ctx.createPattern(tempCanvas, 'repeat');
     };
-    let colosseumState = { active: false, timer: 0, x: 0, y: 0, ownerTag: null };
+    let colosseumState = { active: false, timer: 0, x: 0, y: 0, radius: 180, ownerTag: null };
     let blackHoleState = { active: false, timer: 0, x: 0, y: 0, ownerTag: null }; let timeStopState = { active: false, frame: 0, ownerTag: null, targetTag: null, consumedCloneIds: [], missileFired: false };
 
     const hpRedBar = document.getElementById('hpRedBar'), hpBlueBar = document.getElementById('hpBlueBar'), hpRedText = document.getElementById('hpRedText'), hpBlueText = document.getElementById('hpBlueText'), energyRedBar = document.getElementById('energyRedBar'), energyBlueBar = document.getElementById('energyBlueBar'), nameRed = document.getElementById('nameRed'), nameBlue = document.getElementById('nameBlue'), winnerText = document.getElementById('winnerText');
@@ -1396,8 +1396,8 @@
         if (!collided) return;
         if (!(a.canCollideWith(b) && b.canCollideWith(a))) return;
 
-        let damageFromA = a.isClone ? 5 : (a.roleId === 'magma' ? 10 : (a.roleId === 'clone' ? 0 : BODY_DAMAGE));
-        let damageFromB = b.isClone ? 5 : (b.roleId === 'magma' ? 10 : (b.roleId === 'clone' ? 0 : BODY_DAMAGE));
+        let damageFromA = a.isClone ? 5 : (a.roleId === 'magma' ? 35 + Math.min(5, b.magmaStacks || 0) * 5 : (a.roleId === 'clone' ? 0 : BODY_DAMAGE));
+        let damageFromB = b.isClone ? 5 : (b.roleId === 'magma' ? 35 + Math.min(5, a.magmaStacks || 0) * 5 : (b.roleId === 'clone' ? 0 : BODY_DAMAGE));
         if (b.heavyInjury && a.roleId !== 'frenzy') damageFromA *= 2;
         if (a.heavyInjury && b.roleId !== 'frenzy') damageFromB *= 2;
         damageFromA = getCombinedDamageAfterReduction(damageFromA, b);
@@ -1408,6 +1408,9 @@
 
         if (a.isClone && !b.isClone) a.hp = 0;
         if (b.isClone && !a.isClone) b.hp = 0;
+
+        if (a.roleId === 'magma') b.magmaStacks = Math.max(0, (b.magmaStacks || 0) - 2);
+        if (b.roleId === 'magma') a.magmaStacks = Math.max(0, (a.magmaStacks || 0) - 2);
 
         if (!ONLINE_MODE) {
           if (a.roleId === 'frenzy' && !a.isClone && a.energy >= MAX_ENERGY) triggerFrenzyUltimate(a);
@@ -1530,7 +1533,7 @@
       if (!mainBall) return '-';
       if (mainBall.roleId === 'frenzy') return `劍砍 ${SWORD_DAMAGE} / 碰撞 ${BODY_DAMAGE}`;
       if (mainBall.roleId === 'clone') return `飛彈 ${MISSILE_DAMAGE} / 大飛彈 ${BIG_MISSILE_DAMAGE}`;
-      if (mainBall.roleId === 'magma') return `碰撞 10 / 燃燒 50`;
+      if (mainBall.roleId === 'magma') return `碰撞 35+灼燒爆發 / 燃燒 12~20`;
       if (mainBall.roleId === 'nova') return `碰撞 50 / 黑洞 25`;
       return `碰撞 ${BODY_DAMAGE}`;
     }
@@ -1538,7 +1541,7 @@
       if (!mainBall) return '尚未選定角色';
       if (mainBall.roleId === 'clone') return `分身達到 ${CLONE_TRIGGER_COUNT} 個且大招冷卻完成時，觸發時間靜止領域。`;
       if (mainBall.roleId === 'frenzy') return `被動：反傷 2%，每次受擊 +5 能量。偷速層數 ${mainBall.frenzyStacks || 0} / ${FRENZY_MAX_STACKS}；層數減傷 ${Math.round((mainBall.damageReduction || 0) * 100)}%${mainBall.ultimateTimer > 0 ? `，暴走減傷 40%` : ''}。`;
-      if (mainBall.roleId === 'magma') return `走過留下岩漿(3秒)造成持續燃燒。大招展開死亡角鬥場困住對手。`;
+      if (mainBall.roleId === 'magma') return `走過留下岩漿(3.5秒)疊加灼燒；碰撞消耗 2 層造成爆發。大招展開火山封鎖。`;
       if (mainBall.roleId === 'nova') return `引力支配者，碰撞具備強大斥力。大招開啟黑洞，吸入並撕裂對手。`;
       return mainBall.visual.desc;
     }
@@ -1633,7 +1636,7 @@
       ctx.save();
       ctx.fillStyle = `rgba(10, 0, 5, 0.75)`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      const cx = colosseumState.x, cy = colosseumState.y, radius = 120;
+      const cx = colosseumState.x, cy = colosseumState.y, radius = colosseumState.radius || 180;
       const pulse = Math.sin(gameFrame * 0.2) * 8;
       ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       const floorGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
@@ -1772,6 +1775,13 @@
       ball.ultimateTimer = FRENZY_ULTIMATE_DURATION;
       ball.isUltimateActive = true;
       applyFrenzyUltimateSpeed(ball);
+    }
+
+    function triggerMagmaUltimate(ball) {
+      const target = getMainBall(ball.playerTag === 'p1' ? 'p2' : 'p1');
+      if (!target) return;
+      const x = (ball.x + target.x) / 2, y = (ball.y + target.y) / 2;
+      colosseumState = { active: true, timer: 180, x, y, radius: Math.min(300, Math.max(180, Math.hypot(target.x - ball.x, target.y - ball.y) / 2 + 30)), ownerTag: ball.playerTag, nextDamageFrame: gameFrame };
     }
 
     function refreshFrenzyStacks(ball, targetBall) {
@@ -2113,6 +2123,7 @@
 
 
       for (let ball of balls) {
+        if (ball.magmaStacks > 0 && gameFrame > (ball.magmaStacksUntil || 0)) ball.magmaStacks = 0;
         if (ball.isClone) {
           ball.lifeFrames = (ball.lifeFrames || 0) + 1;
           if (ball.lifeFrames >= 720) ball.hp = 0;
@@ -2140,6 +2151,7 @@
         if (!ONLINE_MODE && !ball.isClone && ball.energy >= MAX_ENERGY) {
           if (ball.roleId === 'clone') summonClones(ball);
           else if (ball.roleId === 'frenzy' && !ball.isUltimateActive) triggerFrenzyUltimate(ball);
+          else if (ball.roleId === 'magma') triggerMagmaUltimate(ball);
           else ball.energy = 0;
           updateHpUI();
         }
@@ -2148,7 +2160,7 @@
           if (!ONLINE_MODE && ball.roleId === 'magma' && !ball.isClone && !openingAnimation.active) {
           const dist = Math.hypot(ball.x - ball.lastMagmaPos.x, ball.y - ball.lastMagmaPos.y);
           if (dist > 35) {
-            magmaPools.push({ x: ball.x, y: ball.y, life: 180, ownerTag: ball.playerTag });
+            magmaPools.push({ x: ball.x, y: ball.y, life: 210, ownerTag: ball.playerTag });
             ball.lastMagmaPos = { x: ball.x, y: ball.y };
           }
         }
@@ -2165,7 +2177,9 @@
             if (target.isClone || target.playerTag === pool.ownerTag || target.isDead) continue;
             const d = Math.hypot(target.x - pool.x, target.y - pool.y);
             if (d < target.radius + 35 && target.burnCooldown <= 0) {
-              applyDamage(ownerBall, target, getCombinedDamageAfterReduction(10, target), 1, 'magma');
+              target.magmaStacks = Math.min(5, (target.magmaStacks || 0) + 1);
+              target.magmaStacksUntil = gameFrame + 240;
+              applyDamage(ownerBall, target, getCombinedDamageAfterReduction(12 + (target.magmaStacks - 1) * 2, target), 1, 'magma');
               target.burnCooldown = 30;
             }
           }
@@ -2176,6 +2190,12 @@
         colosseumState.timer--;
         if (colosseumState.timer <= 0) {
           colosseumState.active = false;
+          const ownerBall = getMainBall(colosseumState.ownerTag);
+          const target = getMainBall(colosseumState.ownerTag === 'p1' ? 'p2' : 'p1');
+          if (!ONLINE_MODE && ownerBall && target && target.magmaStacks > 0) {
+            applyDamage(ownerBall, target, target.magmaStacks * 20, 0, 'arena');
+            target.magmaStacks = 0;
+          }
         } else {
           const ownerBall = getMainBall(colosseumState.ownerTag);
           const isMyColosseum = !ONLINE_MODE;
@@ -2184,8 +2204,8 @@
             for (let target of balls) {
               if (target.isClone || target.playerTag === colosseumState.ownerTag || target.isDead) continue;
               const d = Math.hypot(target.x - colosseumState.x, target.y - colosseumState.y);
-              if (d < 120 && target.burnCooldown <= 0) {
-                applyDamage(ownerBall, target, getCombinedDamageAfterReduction(50, target), 1, 'arena');
+              if (d < (colosseumState.radius || 180) && target.burnCooldown <= 0) {
+                applyDamage(ownerBall, target, getCombinedDamageAfterReduction(12, target), 1, 'arena');
                 target.burnCooldown = 30;
               }
             }
@@ -2535,12 +2555,7 @@
 
             if (data.role === 'clone') summonClones(ball, data.cloneData);
             else if (data.role === 'magma') {
-              ball.x = data.magmaX;
-              ball.y = data.magmaY;
-              ball.vx = data.magmaVX;
-              ball.vy = data.magmaVY;
-              ball.lastMagmaPos = { x: ball.x, y: ball.y };
-              colosseumState = { active: true, timer: 150, x: data.targetX, y: data.targetY, ownerTag: ball.playerTag };
+              colosseumState = { active: true, timer: 180, x: data.targetX, y: data.targetY, radius: data.radius || 180, ownerTag: ball.playerTag };
             }
             else if (data.role === 'nova') {
               blackHoleState = { active: true, timer: 240, x: data.targetX, y: data.targetY, ownerTag: ball.playerTag };
