@@ -235,7 +235,12 @@ function addServerEnergy(roomId, ballId, amount) {
         targetY: ARENA_SIZE / 2,
       });
     } else {
-      io.to(roomId).emit("triggerUltimate", { playerId: ballId });
+      ball.ultimateNonce = (ball.ultimateNonce || 0) + 1;
+      io.to(roomId).emit("triggerUltimate", {
+        playerId: ballId,
+        role: ball.role,
+        ultimateNonce: ball.ultimateNonce,
+      });
     }
   } // 結束 if (ball.energy >= 100)
 } // 結束 function addServerEnergy
@@ -424,6 +429,7 @@ function maybeStartBattle(roomId) {
           hp: 2000,
           maxHp: 2000,
           energy: 0,
+          ultimateNonce: 0,
           role: p1.selectedRole,
           rootTimer: 0,
         },
@@ -437,6 +443,7 @@ function maybeStartBattle(roomId) {
           hp: 2000,
           maxHp: 2000,
           energy: 0,
+          ultimateNonce: 0,
           role: p2.selectedRole,
           rootTimer: 0,
         },

@@ -2238,19 +2238,22 @@
 
             if (openingAnimation.active) openingAnimation.active = false;
 
-            const p1Ball = getMainBall('p1'), p2Ball = getMainBall('p2');
-            if (p1Ball && serverState.balls[0]) {
-              p1Ball.x = serverState.balls[0].x;
-              p1Ball.y = serverState.balls[0].y;
-              p1Ball.hp = serverState.balls[0].hp;
-              p1Ball.energy = serverState.balls[0].energy;
-            }
-            if (p2Ball && serverState.balls[1]) {
-              p2Ball.x = serverState.balls[1].x;
-              p2Ball.y = serverState.balls[1].y;
-              p2Ball.hp = serverState.balls[1].hp;
-              p2Ball.energy = serverState.balls[1].energy;
-            }
+            const syncOnlineBall = (localBall, serverBall) => {
+              if (!localBall || !serverBall) return;
+              localBall.x = serverBall.x;
+              localBall.y = serverBall.y;
+              localBall.hp = serverBall.hp;
+              localBall.energy = serverBall.energy;
+
+              // 伺服器狀態作為大招事件的備援，避免剛好漏掉即時事件時大招被吃掉。
+              const serverUltimateNonce = Number(serverBall.ultimateNonce) || 0;
+              if (serverBall.role === 'frenzy' && serverUltimateNonce > (localBall.serverUltimateNonce || 0)) {
+                triggerFrenzyUltimate(localBall);
+              }
+              localBall.serverUltimateNonce = serverUltimateNonce;
+            };
+            syncOnlineBall(getMainBall('p1'), serverState.balls[0]);
+            syncOnlineBall(getMainBall('p2'), serverState.balls[1]);
 
             if (serverState.frame !== undefined) {
               const missedFrames = serverState.frame - gameFrame;
@@ -2283,7 +2286,13 @@
             else if (data.role === 'nova') {
               blackHoleState = { active: true, timer: 240, x: data.targetX, y: data.targetY, ownerTag: ball.playerTag };
             }
-            else if (ball.roleId === 'frenzy' && !ball.isUltimateActive) triggerFrenzyUltimate(ball);
+            else if (ball.roleId === 'frenzy') {
+              const receivedNonce = Number(data.ultimateNonce);
+              if (!Number.isFinite(receivedNonce) || receivedNonce > (ball.serverUltimateNonce || 0)) {
+                triggerFrenzyUltimate(ball);
+              }
+              if (Number.isFinite(receivedNonce)) ball.serverUltimateNonce = receivedNonce;
+            }
 
             updateHpUI();
           });
