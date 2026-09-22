@@ -489,12 +489,56 @@
     }
 
     .controls {
+      width: min(760px, 100%);
       margin-top: 16px;
       display: flex;
-      gap: 10px;
+      gap: 12px;
       flex-wrap: wrap;
       justify-content: center;
     }
+
+    .control-button {
+      min-height: 48px;
+      flex: 1 1 180px;
+      padding: 12px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+      font-weight: bold;
+    }
+
+    .control-button.primary { background: #e94560; }
+    .control-button.pause { background: #255ea8; }
+    .control-button.exit { background: rgba(255, 255, 255, 0.13); }
+    .control-button:disabled { cursor: not-allowed; opacity: 0.45; }
+
+    .control-hint {
+      width: 100%;
+      color: #aebbd4;
+      font-size: 13px;
+      text-align: center;
+      min-height: 20px;
+    }
+
+    .pause-overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 8px;
+      background: rgba(4, 8, 22, 0.72);
+      color: #fff;
+      font-size: 30px;
+      font-weight: bold;
+      line-height: 1.3;
+      z-index: 2;
+    }
+
+    .pause-overlay small { font-size: 14px; font-weight: normal; color: #c9d5eb; }
+    .pause-overlay.is-visible { display: flex; }
 
     button {
       padding: 10px 22px;
@@ -714,6 +758,8 @@
         border-width: 2px;
       }
 
+      .control-button { flex-basis: 100%; }
+
       .hp-area {
         gap: 8px;
         margin-bottom: 8px;
@@ -747,10 +793,6 @@
     <button id="btnImageToggle">🖼️ 圖片管理器</button>
     <button id="btnThemeToggle">🎨 主題編輯器</button>
   </div>
-
-  <audio id="bgm" loop preload="auto">
-    <source src="assets/bgm.mp3" type="audio/mpeg">
-  </audio>
 
   <div class="editor-panel" id="updateLogPanel"
     style="display: none; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(90vw, 420px); z-index: 300;">
@@ -881,14 +923,16 @@
             </div>
           </div>
         </div>
-        <div class="game-frame"><canvas id="gameCanvas" width="760" height="760"></canvas></div>
+        <div class="game-frame">
+          <canvas id="gameCanvas" width="760" height="760"></canvas>
+          <div class="pause-overlay" id="pauseOverlay">⏸ 已暫停<small>按「繼續對戰」回到賽場</small></div>
+        </div>
         <div class="winner" id="winnerText"></div>
         <div class="controls">
-          <button id="btnStart">重新對戰</button>
-          <button id="btnPause">暫停 / 繼續</button>
-          <button id="btnBack">返回選角</button>
-          <button id="btnMusic">音樂 開 / 關</button>
-          <button id="btnMute">靜音</button>
+          <button class="control-button primary" id="btnStart">重新開始</button>
+          <button class="control-button pause" id="btnPause">暫停對戰</button>
+          <button class="control-button exit" id="btnBack">返回選角</button>
+          <div class="control-hint" id="controlHint">暫停只適用於單機對戰。</div>
         </div>
       </div>
 
@@ -1059,7 +1103,6 @@
     const OPENING_APPROACH_FRAMES = 48, OPENING_IMPACT_FRAMES = 120, OPENING_COUNTDOWN_FRAMES = 240, TIME_STOP_TOTAL_FRAMES = 96, TIME_STOP_ERASE_FRAME = 34, TIME_STOP_MISSILE_FRAME = 62;
 
     const canvas = document.getElementById('gameCanvas'); canvas.width = ARENA_SIZE; canvas.height = ARENA_SIZE; const ctx = canvas.getContext('2d');
-    const bgm = document.getElementById('bgm'); bgm.volume = 0.4;
 
     let balls = [], projectiles = [], swordFlashEffects = [], isRunning = false, animationId = null, gameOver = false, gameFrame = 0;
     let magmaPools = [];
@@ -1099,7 +1142,6 @@
     const hpRedBar = document.getElementById('hpRedBar'), hpBlueBar = document.getElementById('hpBlueBar'), hpRedText = document.getElementById('hpRedText'), hpBlueText = document.getElementById('hpBlueText'), energyRedBar = document.getElementById('energyRedBar'), energyBlueBar = document.getElementById('energyBlueBar'), nameRed = document.getElementById('nameRed'), nameBlue = document.getElementById('nameBlue'), winnerText = document.getElementById('winnerText');
     let battleStats = null;
 
-    async function playBgmSafely() { if (!bgm) return; try { await bgm.play(); } catch (e) { console.log('BGM autoplay blocked'); } }
     function createStats() { return { p1: { totalDamageDealt: 0, totalDamageTaken: 0, totalHealing: 0 }, p2: { totalDamageDealt: 0, totalDamageTaken: 0, totalHealing: 0 } }; }
     function getMainBall(playerTag) { return balls.find(b => b.playerTag === playerTag && !b.isClone); }
     function getClones(playerTag) { return balls.filter(b => b.playerTag === playerTag && b.isClone); }
@@ -1675,6 +1717,7 @@
       const winnerName = winnerRoleId ? ROLE_VISUALS[winnerRoleId].name : (winnerTag === 'p1' ? '🔴 紅方' : '🔵 藍方');
       const loserName = loserRoleId ? ROLE_VISUALS[loserRoleId].name : (loserTag === 'p1' ? '🔴 紅方' : '🔵 藍方');
       winnerText.innerHTML = `🏆 ${winnerName} 獲勝！<small>${loserName} 血量歸零</small>${buildResultStatsHtml()}`; winnerText.style.display = 'block';
+      updateBattleControls();
     }
 
     function checkGameOver() {
@@ -2124,6 +2167,7 @@
       // 🟢 2. 重置遊戲狀態
       if (animationId) cancelAnimationFrame(animationId);
       gameOver = false; // 這是關鍵！如果沒重置，遊戲迴圈會卡死
+      pauseOverlay?.classList.remove('is-visible');
       gameFrame = 0;
       battleStats = createStats();
 
@@ -2152,19 +2196,49 @@
       damageTexts = [];
 
       updateHpUI();
-      playBgmSafely();
       isRunning = true;
+      updateBattleControls();
 
       // 🟢 真正啟動遊戲迴圈的馬達！
       animationId = requestAnimationFrame(gameLoop);
     }
 
-    function togglePause() { if (gameOver) return; isRunning = !isRunning; if (isRunning) gameLoop(); }
+    const pauseOverlay = document.getElementById('pauseOverlay');
+    const btnStart = document.getElementById('btnStart');
+    const btnPause = document.getElementById('btnPause');
+    const btnBack = document.getElementById('btnBack');
+    const controlHint = document.getElementById('controlHint');
+
+    function updateBattleControls() {
+      if (ONLINE_MODE) {
+        btnStart.textContent = '再戰（需對手同意）';
+        btnStart.disabled = !gameOver;
+        btnPause.style.display = 'none';
+        btnBack.textContent = '離開對戰並返回大廳';
+        controlHint.textContent = gameOver ? '點選再戰後，等待對手也同意即可開始下一局。' : '線上對戰無法單獨暫停；可隨時離開並返回大廳。';
+      } else {
+        btnStart.textContent = '重新開始';
+        btnStart.disabled = false;
+        btnPause.style.display = '';
+        btnPause.textContent = isRunning ? '暫停對戰' : '繼續對戰';
+        btnBack.textContent = '返回選角';
+        controlHint.textContent = isRunning ? '暫停會凍結單機對戰；重新開始會立刻重置本局。' : '目前已暫停，按「繼續對戰」回到賽場。';
+      }
+    }
+
+    function togglePause() {
+      if (ONLINE_MODE || gameOver) return;
+      isRunning = !isRunning;
+      pauseOverlay.classList.toggle('is-visible', !isRunning);
+      updateBattleControls();
+      if (isRunning) { lastTime = performance.now(); gameLoop(); }
+    }
     function backToSelect() {
+      if (ONLINE_MODE) { window.location.href = '/'; return; }
       const topBar = document.querySelector('.top-bar');
       if (topBar) topBar.style.display = 'flex';
 
-      isRunning = false; if (animationId) cancelAnimationFrame(animationId); gameArea.style.display = 'none'; charSelect.style.display = 'flex'; selectingPlayer = 1; p1Choice = null; p2Choice = null; selectTitle.textContent = '🔴 玩家 1 請選擇角色'; selectTitle.style.color = '#ffd700'; currentIndex = 0; updateCarousel();
+      isRunning = false; pauseOverlay.classList.remove('is-visible'); if (animationId) cancelAnimationFrame(animationId); gameArea.style.display = 'none'; charSelect.style.display = 'flex'; selectingPlayer = 1; p1Choice = null; p2Choice = null; selectTitle.textContent = '🔴 玩家 1 請選擇角色'; selectTitle.style.color = '#ffd700'; currentIndex = 0; updateCarousel();
     }
 
     document.getElementById('btnStart').addEventListener('click', () => {
@@ -2182,10 +2256,8 @@
         initGame();
       }
     });
-    document.getElementById('btnPause').addEventListener('click', togglePause);
-    document.getElementById('btnBack').addEventListener('click', backToSelect);
-    document.getElementById('btnMusic').addEventListener('click', async () => { if (bgm.paused) { try { await bgm.play(); } catch (e) { console.log('互動後播放'); } } else bgm.pause(); });
-    document.getElementById('btnMute').addEventListener('click', () => { bgm.muted = !bgm.muted; });
+    btnPause.addEventListener('click', togglePause);
+    btnBack.addEventListener('click', backToSelect);
 
     const themeEditor = document.getElementById('themeEditor'); const imageEditor = document.getElementById('imageEditor'); const updateLogPanel = document.getElementById('updateLogPanel');
     document.getElementById('btnUpdateLog').addEventListener('click', () => { updateLogPanel.style.display = updateLogPanel.style.display === 'block' ? 'none' : 'block'; if (updateLogPanel.style.display === 'block') { themeEditor.style.display = 'none'; imageEditor.style.display = 'none'; } });
@@ -2338,7 +2410,8 @@
           // 🟢 收到重啟確認：雙方都同意了！
           onlineSocket.on("rematchConfirmed", () => {
             const btn = document.getElementById('btnStart');
-            btn.textContent = "重新對戰"; // 把按鈕文字改回來
+            btn.style.animation = '';
+            btn.textContent = "再戰（需對手同意）";
             btn.disabled = false;
             initGame(); // 執行真正的重新開局
           });
@@ -2349,6 +2422,7 @@
               // 只有在收到「不是自己」的請求時，才改變按鈕提示
               const btn = document.getElementById('btnStart');
               btn.textContent = "對手請求重新對戰！(點擊同意)";
+              btn.disabled = false;
               btn.style.animation = "energyPulse 1s infinite alternate"; // 讓按鈕閃爍吸引注意
             }
           });
