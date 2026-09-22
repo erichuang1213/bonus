@@ -1138,12 +1138,12 @@
     const diagnosticsPanel = document.getElementById('diagnosticsPanel');
     const diagnosticsReadout = document.getElementById('diagnosticsReadout');
     const btnDiagnosticEffects = document.getElementById('btnDiagnosticEffects');
-    const diagnostics = { startedAt: performance.now(), frameCount: 0, packetCount: 0, lastPacketAt: 0, lastFrameAt: 0, maxPacketGap: 0, maxFrameGap: 0, slowFrameCount: 0, maxSimulationSteps: 0, serverTickMs: 0, fps: 0, renderMs: 0 };
+    const diagnostics = { startedAt: performance.now(), frameCount: 0, packetCount: 0, lastPacketAt: 0, lastFrameAt: 0, maxPacketGap: 0, maxFrameGap: 0, slowFrameCount: 0, maxSimulationSteps: 0, zeroSimulationFrames: 0, serverTickMs: 0, fps: 0, renderMs: 0 };
 
     function renderDiagnostics() {
       if (!DIAGNOSTICS_ENABLED) return;
       diagnosticsPanel.classList.add('is-visible');
-      diagnosticsReadout.innerHTML = `FPS：${diagnostics.fps.toFixed(0)}<br>前端每幀耗時：${diagnostics.renderMs.toFixed(1)} ms<br>最長畫面間隔：${diagnostics.maxFrameGap.toFixed(0)} ms（延遲幀 ${diagnostics.slowFrameCount}）<br>單幀補算物理：${diagnostics.maxSimulationSteps} 步<br>同步封包：${diagnostics.packetCount} / 秒<br>封包最大間隔：${diagnostics.maxPacketGap.toFixed(0)} ms<br>伺服器物理間隔：${diagnostics.serverTickMs.toFixed(1)} ms<br>特效：${diagnosticEffectsDisabled ? '已關閉（診斷中）' : '開啟'}`;
+      diagnosticsReadout.innerHTML = `FPS：${diagnostics.fps.toFixed(0)}<br>前端每幀耗時：${diagnostics.renderMs.toFixed(1)} ms<br>最長畫面間隔：${diagnostics.maxFrameGap.toFixed(0)} ms（延遲幀 ${diagnostics.slowFrameCount}）<br>單幀補算物理：${diagnostics.maxSimulationSteps} 步（未更新幀 ${diagnostics.zeroSimulationFrames}）<br>同步封包：${diagnostics.packetCount} / 秒<br>封包最大間隔：${diagnostics.maxPacketGap.toFixed(0)} ms<br>伺服器物理間隔：${diagnostics.serverTickMs.toFixed(1)} ms<br>特效：${diagnosticEffectsDisabled ? '已關閉（診斷中）' : '開啟'}`;
       btnDiagnosticEffects.textContent = diagnosticEffectsDisabled ? '恢復視覺特效' : '暫時關閉視覺特效';
     }
 
@@ -1166,6 +1166,7 @@
       }
       diagnostics.lastFrameAt = frameStartedAt;
       diagnostics.maxSimulationSteps = Math.max(diagnostics.maxSimulationSteps, simulationSteps);
+      if (!ONLINE_MODE && !openingAnimation.active && simulationSteps === 0) diagnostics.zeroSimulationFrames++;
       diagnostics.frameCount++;
       diagnostics.renderMs = now - frameStartedAt;
       if (now - diagnostics.startedAt < 1000) return;
@@ -1178,6 +1179,7 @@
       diagnostics.maxFrameGap = 0;
       diagnostics.slowFrameCount = 0;
       diagnostics.maxSimulationSteps = 0;
+      diagnostics.zeroSimulationFrames = 0;
     }
 
     if (DIAGNOSTICS_ENABLED) {
@@ -2219,10 +2221,10 @@
         accumulator = 0;
       } else {
         accumulator += deltaTime;
-        // 遊戲的物理本來就是以 60 FPS 的單一步驟設計。
-        // rAF 與 16.666…ms 無法完全整除時，while 會週期性跑兩次，
-        // 即使畫面從未掉幀也會讓球突然前進兩格。
-        if (accumulator >= TIME_STEP) {
+        // 60Hz 螢幕每次回呼都應有一個物理更新。精確比較 16.666…ms
+        // 會在部分畫面落到門檻下，形成「0 步、1 步」交替的 30 FPS 手感。
+        // 留一點容差給瀏覽器計時誤差；120Hz 螢幕仍會自然隔幀更新。
+        if (accumulator >= TIME_STEP * 0.75) {
           if (openingAnimation.active) {
             if (!ONLINE_MODE) updateOpeningAnimation();
           } else {
@@ -2232,8 +2234,8 @@
             }
           }
           simulationSteps++;
-          // 只保留不足一個物理步驟的餘數；不以同一畫面補跑兩次物理。
-          accumulator %= TIME_STEP;
+          // 不追趕多餘步數，避免任何一個畫面突然前進兩格。
+          accumulator = 0;
         }
       }
 
