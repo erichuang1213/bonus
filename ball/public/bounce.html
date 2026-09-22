@@ -1185,17 +1185,10 @@
     const TIME_STEP = 1000 / 60;
 
     function triggerImpact(damage) {
-      // 普通碰撞原本會凍結整個物理迴圈 4 幀；連續接觸時會變成明顯的停頓。
-      // 保留震動回饋，只有大飛彈等重擊才使用極短的命中停頓。
-      if (damage >= BIG_MISSILE_DAMAGE) {
-        hitStopFrames = Math.max(hitStopFrames, 2);
-        screenShake = 18;
-      } else if (damage >= 40) {
-        screenShake = 10;
-      } else if (damage >= 20) {
+      // 一般接觸太頻繁，隨機平移整個畫布會被誤認為遊戲卡頓。
+      // 命中停頓已完全移除；只有罕見的大飛彈保留極輕微的畫面回饋。
+      if (!diagnosticEffectsDisabled && damage >= BIG_MISSILE_DAMAGE) {
         screenShake = 6;
-      } else if (damage >= 5) {
-        screenShake = 3;
       }
     }
 
