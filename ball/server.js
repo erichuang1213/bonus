@@ -29,7 +29,7 @@ const ARENA_DAMAGE = 50;
 const ARENA_DAMAGE_INTERVAL = 30;
 const BLACK_HOLE_DAMAGE = 25;
 const BLACK_HOLE_DAMAGE_INTERVAL = 15;
-const STATE_BROADCAST_INTERVAL = 3;
+const EFFECTS_BROADCAST_INTERVAL = 3;
 const FRENZY_REFLECT_RATIO = 0.02;
 const FRENZY_HIT_ENERGY = 5;
 const ALLOWED_ROLES = new Set(["speeder", "tank", "frenzy", "magma", "nova", "clone"]);
@@ -710,13 +710,11 @@ setInterval(() => {
 
     if (room.gameState.openingFrames < 240) {
       room.gameState.openingFrames++;
-      if (room.gameState.openingFrames % STATE_BROADCAST_INTERVAL === 0) {
-        io.to(roomId).emit("updateGameState", {
-          opening: true,
-          balls: room.gameState.balls,
-          stats: room.gameState.stats,
-        });
-      }
+      io.to(roomId).emit("updateGameState", {
+        opening: true,
+        balls: room.gameState.balls,
+        stats: room.gameState.stats,
+      });
       continue;
     }
 
@@ -904,16 +902,18 @@ setInterval(() => {
       });
     }
 
-    if (room.gameState.frame % STATE_BROADCAST_INTERVAL === 0) {
-      io.to(roomId).emit("updateGameState", {
-        frame: room.gameState.frame,
-        balls: balls,
-        stats: room.gameState.stats,
-        magmaPools: room.gameState.magmaPools,
-        colosseum: room.gameState.colosseum,
-        blackHole: room.gameState.blackHole,
-      });
+    const stateUpdate = {
+      frame: room.gameState.frame,
+      balls: balls,
+      stats: room.gameState.stats,
+    };
+    // 球體位置每幀同步，確保畫面與碰撞判定一致；較大的環境特效才降頻傳送。
+    if (room.gameState.frame % EFFECTS_BROADCAST_INTERVAL === 0) {
+      stateUpdate.magmaPools = room.gameState.magmaPools;
+      stateUpdate.colosseum = room.gameState.colosseum;
+      stateUpdate.blackHole = room.gameState.blackHole;
     }
+    io.to(roomId).emit("updateGameState", stateUpdate);
   }
 }, 1000 / 60);
 
