@@ -1522,11 +1522,13 @@
           ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); ctx.strokeStyle = this.heavyInjury ? '#ff0000' : style.borderColor; ctx.lineWidth = this.isClone ? style.borderWidth * 0.75 : style.borderWidth; ctx.stroke(); ctx.closePath();
         } else {
           ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); const grad = ctx.createRadialGradient(x - drawRadius * 0.3, y - drawRadius * 0.3, drawRadius * 0.1, x, y, drawRadius); grad.addColorStop(0, style.innerGradient[0]); grad.addColorStop(1, style.innerGradient[1]); ctx.fillStyle = grad; ctx.fill(); ctx.strokeStyle = this.heavyInjury ? '#ff0000' : style.borderColor; ctx.lineWidth = this.isClone ? style.borderWidth * 0.75 : style.borderWidth; ctx.stroke(); ctx.closePath();
+          drawRoleDecoration(this, x, y, drawRadius);
           ctx.beginPath(); ctx.arc(x - drawRadius * 0.25, y - drawRadius * 0.25, drawRadius * 0.25, 0, Math.PI * 2); ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.25})`; ctx.fill(); ctx.closePath();
         }
         ctx.restore();
       }
       draw() {
+        if (!this.isClone) drawRoleTrail(this);
         if (this.roleId === 'frenzy' && !this.isClone && this.ultimateTimer > 0) {
           const pulse = Math.sin(gameFrame * 0.2) * 0.3 + 0.7; ctx.beginPath(); ctx.arc(this.x, this.y, this.radius + 10, 0, Math.PI * 2); ctx.strokeStyle = `rgba(255, 215, 0, ${pulse})`; ctx.lineWidth = 4; ctx.stroke(); ctx.closePath(); ctx.beginPath(); ctx.arc(this.x, this.y, this.radius + 5, 0, Math.PI * 2); ctx.fillStyle = `rgba(255, 215, 0, ${pulse * 0.15})`; ctx.fill(); ctx.closePath();
         }
@@ -1542,6 +1544,45 @@
 
     function setBallSpeedByCurrentDirection(ball, speed) {
       const dir = Math.atan2(ball.vy, ball.vx); ball.baseSpeed = speed; ball.vx = Math.cos(dir) * speed; ball.vy = Math.sin(dir) * speed;
+    }
+
+    function drawRoleDecoration(ball, x, y, r) {
+      ctx.save(); ctx.beginPath(); ctx.arc(x, y, r - 3, 0, Math.PI * 2); ctx.clip(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      const spin = gameFrame * 0.045;
+      if (ball.roleId === 'speeder') {
+        ctx.strokeStyle = 'rgba(220,255,255,0.78)'; ctx.lineWidth = Math.max(2, r * 0.055);
+        for (let index = 0; index < 3; index++) { const a = spin + index * Math.PI * 2 / 3; ctx.beginPath(); ctx.arc(x, y, r * (0.42 + index * 0.09), a, a + 1.35); ctx.stroke(); }
+        ctx.fillStyle = 'rgba(255,255,255,0.56)'; ctx.beginPath(); ctx.arc(x, y, r * 0.18, 0, Math.PI * 2); ctx.fill();
+      } else if (ball.roleId === 'tank') {
+        ctx.strokeStyle = 'rgba(220,255,210,0.68)'; ctx.lineWidth = Math.max(2, r * 0.045); ctx.beginPath();
+        for (let index = 0; index <= 6; index++) { const a = -Math.PI / 2 + index * Math.PI / 3; const px = x + Math.cos(a) * r * 0.56, py = y + Math.sin(a) * r * 0.56; index ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.stroke();
+        ctx.fillStyle = 'rgba(235,255,225,0.62)'; ctx.beginPath(); ctx.moveTo(x, y - r * 0.37); ctx.lineTo(x + r * 0.23, y - r * 0.1); ctx.lineTo(x + r * 0.14, y + r * 0.31); ctx.lineTo(x - r * 0.14, y + r * 0.31); ctx.lineTo(x - r * 0.23, y - r * 0.1); ctx.closePath(); ctx.fill();
+      } else if (ball.roleId === 'frenzy') {
+        ctx.strokeStyle = 'rgba(95,0,0,0.72)'; ctx.lineWidth = Math.max(2, r * 0.045);
+        for (let index = 0; index < 4; index++) { const a = index * Math.PI / 2 + 0.35; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * r * 0.12, y + Math.sin(a) * r * 0.12); ctx.lineTo(x + Math.cos(a + .32) * r * 0.35, y + Math.sin(a + .32) * r * 0.35); ctx.lineTo(x + Math.cos(a - .14) * r * 0.63, y + Math.sin(a - .14) * r * 0.63); ctx.stroke(); }
+        ctx.fillStyle = `rgba(255,235,210,${0.24 + Math.sin(gameFrame * .18) * .10})`; ctx.beginPath(); ctx.arc(x, y, r * .22, 0, Math.PI * 2); ctx.fill();
+      } else if (ball.roleId === 'magma') {
+        ctx.strokeStyle = 'rgba(87,20,12,0.9)'; ctx.lineWidth = Math.max(3, r * 0.06);
+        for (let index = 0; index < 5; index++) { const a = index * Math.PI * 2 / 5 + .2; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a + .22) * r * .28, y + Math.sin(a + .22) * r * .28); ctx.lineTo(x + Math.cos(a) * r * .72, y + Math.sin(a) * r * .72); ctx.stroke(); }
+        ctx.strokeStyle = 'rgba(255,215,75,0.78)'; ctx.lineWidth = Math.max(1, r * 0.018); for (let index = 0; index < 3; index++) { const a = index * Math.PI * 2 / 3 + spin; ctx.beginPath(); ctx.arc(x, y, r * .43, a, a + .45); ctx.stroke(); }
+      } else if (ball.roleId === 'nova') {
+        const cell = r * .34; ctx.fillStyle = 'rgba(35,10,65,0.46)';
+        for (let row = -2; row <= 1; row++) for (let col = -2; col <= 1; col++) if ((row + col) % 2 === 0) ctx.fillRect(x + col * cell, y + row * cell, cell, cell);
+        ctx.fillStyle = 'rgba(255,238,145,0.9)'; ctx.font = `bold ${Math.round(r * .42)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('♠', x, y + r * .02);
+      } else if (ball.roleId === 'clone') {
+        ctx.strokeStyle = 'rgba(255,225,255,0.75)'; ctx.lineWidth = Math.max(2, r * .04);
+        for (let index = 0; index < 3; index++) { const a = spin + index * Math.PI * 2 / 3; ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * .23, y + Math.sin(a) * r * .23, r * .25, 0, Math.PI * 2); ctx.stroke(); }
+        ctx.fillStyle = 'rgba(255,245,255,0.65)'; ctx.beginPath(); ctx.arc(x, y, r * .13, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawRoleTrail(ball) {
+      const speed = Math.hypot(ball.vx, ball.vy) || 1, nx = ball.vx / speed, ny = ball.vy / speed;
+      const palettes = { speeder: ['rgba(190,255,255,0)', 'rgba(115,235,255,0.58)'], tank: ['rgba(135,255,180,0)', 'rgba(60,185,100,0.30)'], frenzy: ['rgba(255,90,70,0)', 'rgba(175,10,20,0.52)'], magma: ['rgba(255,150,40,0)', 'rgba(205,45,10,0.55)'], nova: ['rgba(245,220,255,0)', 'rgba(155,75,240,0.52)'], clone: ['rgba(255,190,245,0)', 'rgba(210,90,200,0.42)'] };
+      const colors = palettes[ball.roleId] || palettes.speeder, length = ball.radius * 1.15;
+      const grad = ctx.createLinearGradient(ball.x, ball.y, ball.x - nx * length, ball.y - ny * length); grad.addColorStop(0, colors[1]); grad.addColorStop(1, colors[0]);
+      ctx.save(); ctx.strokeStyle = grad; ctx.lineWidth = Math.max(8, ball.radius * .34); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(ball.x - nx * ball.radius * .25, ball.y - ny * ball.radius * .25); ctx.lineTo(ball.x - nx * length, ball.y - ny * length); ctx.stroke(); ctx.restore();
     }
     function applyFrenzyNormalSpeed(ball) { setBallSpeedByCurrentDirection(ball, ball.originalSpeed + ball.frenzyStacks * FRENZY_STEAL_SPEED); }
     function applyFrenzyUltimateSpeed(ball) { setBallSpeedByCurrentDirection(ball, FRENZY_ULTIMATE_SPEED + ball.frenzyStacks * FRENZY_STEAL_SPEED); }
