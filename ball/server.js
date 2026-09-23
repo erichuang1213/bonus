@@ -32,15 +32,17 @@ const MAGMA_STACK_DURATION = 240;
 const MAGMA_SLOW_PER_STACK = 0.06;
 const ARENA_DAMAGE = 12;
 const ARENA_DAMAGE_INTERVAL = 30;
-const JOKER_MAX_HP = 1900;
-const JOKER_BASE_SPEED = 11;
-const JOKER_BODY_DAMAGE = 40;
+const JOKER_MAX_HP = 1850;
+const JOKER_BASE_SPEED = 11.5;
+const JOKER_BODY_DAMAGE = 30;
 const JOKER_CARD_LIFETIME = 180;
 const JOKER_CARD_ARM_DELAY = 18;
-const JOKER_CARD_RADIUS = 26;
-const JOKER_CARD_DAMAGE = 35;
-const JOKER_ULTIMATE_CARD_DAMAGE = 45;
-const JOKER_MAX_PASSIVE_CARDS = 2;
+const JOKER_CARD_RADIUS = 28;
+const JOKER_CARD_DAMAGE = 30;
+const JOKER_ULTIMATE_CARD_DAMAGE = 38;
+const JOKER_PASSIVE_CARD_COUNT = 3;
+const JOKER_ULTIMATE_CARD_COUNT = 5;
+const JOKER_SHOW_DURATION = 180;
 const EFFECTS_BROADCAST_INTERVAL = 3;
 const STALE_COMBAT_FRAMES = 300;
 const FRENZY_REFLECT_RATIO = 0.02;
@@ -240,11 +242,8 @@ function addServerEnergy(roomId, ballId, amount) {
     } else if (ball.role === "nova") {
       const enemy = room.gameState.balls.find((candidate) => candidate.id !== ballId);
       if (!enemy) return;
-      // 大招不是必中傷害：在對手周圍洗出三張強化鬼牌，走位失誤才會踩中。
-      for (let index = 0; index < 3; index++) {
-        const angle = -Math.PI / 2 + index * (Math.PI * 2 / 3);
-        spawnJokerCard(room.gameState, ballId, enemy.x + Math.cos(angle) * 155, enemy.y + Math.sin(angle) * 155, JOKER_ULTIMATE_CARD_DAMAGE, true);
-      }
+      ball.jokerShowTimer = JOKER_SHOW_DURATION;
+      spawnJokerHand(room.gameState, ball, enemy, true);
       io.to(roomId).emit("triggerUltimate", {
         playerId: ballId,
         role: "nova",
@@ -338,23 +337,35 @@ function getBodyDamage(ball, target) {
   return BODY_DAMAGE;
 }
 
-function spawnJokerCard(state, ownerTag, x, y, damage = JOKER_CARD_DAMAGE, isUltimate = false) {
+function spawnJokerCard(state, ownerTag, x, y, damage, isUltimate, isReal, effect) {
   state.jokerCards ||= [];
   const safeX = Math.max(BALL_RADIUS, Math.min(ARENA_SIZE - BALL_RADIUS, x));
   const safeY = Math.max(BALL_RADIUS, Math.min(ARENA_SIZE - BALL_RADIUS, y));
-  if (!isUltimate) {
-    const passiveCards = state.jokerCards.filter((card) => card.ownerTag === ownerTag && !card.isUltimate);
-    while (passiveCards.length >= JOKER_MAX_PASSIVE_CARDS) {
-      const oldest = passiveCards.shift();
-      const index = state.jokerCards.indexOf(oldest);
-      if (index >= 0) state.jokerCards.splice(index, 1);
-    }
-  }
   state.jokerCards.push({
     x: safeX, y: safeY, ownerTag, damage,
-    isUltimate, life: JOKER_CARD_LIFETIME,
+    isUltimate, isReal, effect, life: JOKER_CARD_LIFETIME,
     armedAt: state.frame + JOKER_CARD_ARM_DELAY,
   });
+}
+
+function spawnJokerHand(state, owner, target, isUltimate = false) {
+  state.jokerCards ||= [];
+  // 一次只保留一組被動蓋牌；這是佈局，不是把賽場塞滿地雷。
+  if (!isUltimate) state.jokerCards = state.jokerCards.filter((card) => card.ownerTag !== owner.id || card.isUltimate);
+  const count = isUltimate ? JOKER_ULTIMATE_CARD_COUNT : JOKER_PASSIVE_CARD_COUNT;
+  const realIndexes = isUltimate
+    ? [state.jokerTrickIndex % count, (state.jokerTrickIndex + 2) % count]
+    : [state.jokerTrickIndex % count];
+  const direction = Math.atan2(target.vy, target.vx);
+  for (let index = 0; index < count; index++) {
+    const spread = count === 1 ? 0 : (index / (count - 1) - 0.5) * (isUltimate ? 2.6 : 1.9);
+    const angle = direction + spread;
+    const distance = isUltimate ? 165 : 135;
+    const isReal = realIndexes.includes(index);
+    const effect = isReal && (state.jokerTrickIndex + index) % 2 === 1 ? "swap" : "turn";
+    spawnJokerCard(state, owner.id, target.x + Math.cos(angle) * distance, target.y + Math.sin(angle) * distance, isUltimate ? JOKER_ULTIMATE_CARD_DAMAGE : JOKER_CARD_DAMAGE, isUltimate, isReal, effect);
+  }
+  state.jokerTrickIndex = (state.jokerTrickIndex || 0) + 1;
 }
 
 function validateReportedHit(room, attackerId, targetId, damage, hitType) {
@@ -485,12 +496,21 @@ function updateServerEffects(roomId, room) {
     if (state.frame < card.armedAt) continue;
     const target = balls.find((ball) => ball.id !== card.ownerTag);
     if (!target || Math.hypot(target.x - card.x, target.y - card.y) > BALL_RADIUS + JOKER_CARD_RADIUS) continue;
-    applyServerDamage(roomId, target.id, card.ownerTag, card.damage, 2);
-    if (room.phase !== "battle") return;
-    // 鬼牌命中後只改變方向，不加速、也不凍結，避免再製造卡頓感。
-    const vx = target.vx, vy = target.vy;
-    target.vx = -vy;
-    target.vy = vx;
+    if (card.isReal) {
+      applyServerDamage(roomId, target.id, card.ownerTag, card.damage, 2);
+      if (room.phase !== "battle") return;
+      const owner = balls.find((ball) => ball.id === card.ownerTag);
+      if (card.effect === "swap" && owner) {
+        const ownerX = owner.x, ownerY = owner.y;
+        owner.x = target.x; owner.y = target.y;
+        target.x = ownerX; target.y = ownerY;
+      } else {
+        // 轉向而不加速、不定身，效果強但不會製造物理卡頓。
+        const vx = target.vx, vy = target.vy;
+        target.vx = -vy;
+        target.vy = vx;
+      }
+    }
     state.jokerCards.splice(index, 1);
   }
 }
@@ -515,6 +535,7 @@ function maybeStartBattle(roomId) {
       magmaPools: [],
       colosseum: null,
       jokerCards: [],
+      jokerTrickIndex: 0,
       openingFrames: 0, // 🟢 新增：進場動畫計時器
       balls: [
         // 🟢 加入 baseSpeed: 12.2 (這是 10 和 -7 向量算出來的預設總速度)
@@ -688,6 +709,7 @@ io.on("connection", (socket) => {
       room.gameState.hitCooldowns = {};
       room.gameState.rateLimits = {};
       room.gameState.jokerCards = [];
+      room.gameState.jokerTrickIndex = 0;
       room.gameState.magmaPools = [];
       room.gameState.colosseum = null;
       delete room.gameState.winnerId;
@@ -846,6 +868,7 @@ setInterval(() => {
     }
 
     balls.forEach((ball) => {
+      if (ball.jokerShowTimer > 0) ball.jokerShowTimer--;
       // 狂暴大招必須在伺服器維護，否則每幀位置同步會覆蓋前端的速度效果。
       if (ball.frenzyUltimateTimer > 0) {
         ball.frenzyUltimateTimer--;
@@ -952,9 +975,9 @@ setInterval(() => {
         // 碰撞回能與傷害分開：影分身本體雖然不造成碰撞傷害，仍應獲得碰撞能量。
         applyServerDamage(roomId, "p2", "p1", getBodyDamage(b1, b2));
         applyServerDamage(roomId, "p1", "p2", getBodyDamage(b2, b1));
-        // 鬼牌小丑的被動：碰撞落下一張延遲啟動的牌，不能在同一撞瞬間偷吃傷害。
-        if (b1.role === "nova") spawnJokerCard(room.gameState, b1.id, b2.x, b2.y);
-        if (b2.role === "nova") spawnJokerCard(room.gameState, b2.id, b1.x, b1.y);
+        // 鬼牌小丑的被動：一組蓋牌只藏一張真牌；同撞瞬間不會偷吃傷害。
+        if (b1.role === "nova") spawnJokerHand(room.gameState, b1, b2);
+        if (b2.role === "nova") spawnJokerHand(room.gameState, b2, b1);
         if (b1.role === "magma") b2.magmaStacks = Math.max(0, (b2.magmaStacks || 0) - 2);
         if (b2.role === "magma") b1.magmaStacks = Math.max(0, (b1.magmaStacks || 0) - 2);
         addServerEnergy(roomId, "p1", 10);

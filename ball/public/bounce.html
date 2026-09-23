@@ -1037,7 +1037,7 @@
       { id: 'tank', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'none' },
       { id: 'frenzy', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'sword' },
       { id: 'magma', hp: 2400, speed: 9.2, radius: BASE_RADIUS, skill: 'magma' },
-      { id: 'nova', hp: 1900, speed: 11, radius: BASE_RADIUS, skill: 'joker' },
+      { id: 'nova', hp: 1850, speed: 11.5, radius: BASE_RADIUS, skill: 'joker' },
       { id: 'clone', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'missile' }
     ];
 
@@ -1270,7 +1270,7 @@
       magmaPattern = ctx.createPattern(tempCanvas, 'repeat');
     };
     let colosseumState = { active: false, timer: 0, x: 0, y: 0, radius: 180, ownerTag: null };
-    let jokerCards = []; let timeStopState = { active: false, frame: 0, ownerTag: null, targetTag: null, consumedCloneIds: [], missileFired: false };
+    let jokerCards = [], localJokerTrickIndex = 0; let timeStopState = { active: false, frame: 0, ownerTag: null, targetTag: null, consumedCloneIds: [], missileFired: false };
 
     const hpRedBar = document.getElementById('hpRedBar'), hpBlueBar = document.getElementById('hpBlueBar'), hpRedText = document.getElementById('hpRedText'), hpBlueText = document.getElementById('hpBlueText'), energyRedBar = document.getElementById('energyRedBar'), energyBlueBar = document.getElementById('energyBlueBar'), nameRed = document.getElementById('nameRed'), nameBlue = document.getElementById('nameBlue'), winnerText = document.getElementById('winnerText');
     let battleStats = null;
@@ -1409,8 +1409,8 @@
         if (!a.isClone && !b.isClone) lastCombatFrame = gameFrame;
         if (!(a.canCollideWith(b) && b.canCollideWith(a))) return;
 
-        let damageFromA = a.isClone ? 5 : (a.roleId === 'magma' ? 35 + Math.min(5, b.magmaStacks || 0) * 5 : (a.roleId === 'nova' ? 40 : (a.roleId === 'clone' ? 0 : BODY_DAMAGE)));
-        let damageFromB = b.isClone ? 5 : (b.roleId === 'magma' ? 35 + Math.min(5, a.magmaStacks || 0) * 5 : (b.roleId === 'nova' ? 40 : (b.roleId === 'clone' ? 0 : BODY_DAMAGE)));
+        let damageFromA = a.isClone ? 5 : (a.roleId === 'magma' ? 35 + Math.min(5, b.magmaStacks || 0) * 5 : (a.roleId === 'nova' ? 30 : (a.roleId === 'clone' ? 0 : BODY_DAMAGE)));
+        let damageFromB = b.isClone ? 5 : (b.roleId === 'magma' ? 35 + Math.min(5, a.magmaStacks || 0) * 5 : (b.roleId === 'nova' ? 30 : (b.roleId === 'clone' ? 0 : BODY_DAMAGE)));
         if (b.heavyInjury && a.roleId !== 'frenzy') damageFromA *= 2;
         if (a.heavyInjury && b.roleId !== 'frenzy') damageFromB *= 2;
         damageFromA = getCombinedDamageAfterReduction(damageFromA, b);
@@ -1424,8 +1424,10 @@
 
         if (a.roleId === 'magma') b.magmaStacks = Math.max(0, (b.magmaStacks || 0) - 2);
         if (b.roleId === 'magma') a.magmaStacks = Math.max(0, (a.magmaStacks || 0) - 2);
-        if (!ONLINE_MODE && a.roleId === 'nova' && !a.isClone) spawnLocalJokerCard(a, b.x, b.y);
-        if (!ONLINE_MODE && b.roleId === 'nova' && !b.isClone) spawnLocalJokerCard(b, a.x, a.y);
+        if (!ONLINE_MODE && !a.isClone && !b.isClone) {
+          if (a.roleId === 'nova') spawnLocalJokerHand(a, b);
+          if (b.roleId === 'nova') spawnLocalJokerHand(b, a);
+        }
 
         if (!ONLINE_MODE) {
           if (a.roleId === 'frenzy' && !a.isClone && a.energy >= MAX_ENERGY) triggerFrenzyUltimate(a);
@@ -1549,7 +1551,7 @@
       if (mainBall.roleId === 'frenzy') return `劍砍 ${SWORD_DAMAGE} / 碰撞 ${BODY_DAMAGE}`;
       if (mainBall.roleId === 'clone') return `飛彈 ${MISSILE_DAMAGE} / 大飛彈 ${BIG_MISSILE_DAMAGE}`;
       if (mainBall.roleId === 'magma') return `碰撞 35+灼燒爆發 / 燃燒 12~20`;
-      if (mainBall.roleId === 'nova') return `碰撞 40 / 鬼牌 35`;
+      if (mainBall.roleId === 'nova') return `碰撞 30 / 真牌 30`;
       return `碰撞 ${BODY_DAMAGE}`;
     }
     function getRoleNote(mainBall) {
@@ -1557,7 +1559,7 @@
       if (mainBall.roleId === 'clone') return `分身達到 ${CLONE_TRIGGER_COUNT} 個且大招冷卻完成時，觸發時間靜止領域。`;
       if (mainBall.roleId === 'frenzy') return `被動：反傷 2%，每次受擊 +5 能量。偷速層數 ${mainBall.frenzyStacks || 0} / ${FRENZY_MAX_STACKS}；層數減傷 ${Math.round((mainBall.damageReduction || 0) * 100)}%${mainBall.ultimateTimer > 0 ? `，暴走減傷 40%` : ''}。`;
       if (mainBall.roleId === 'magma') return `走過留下岩漿(3.5秒)疊加灼燒；碰撞消耗 2 層造成爆發。大招展開火山封鎖。`;
-      if (mainBall.roleId === 'nova') return `被動：碰撞留下鬼牌（最多 2 張）；踩牌受 35 傷害並轉向 90°。滿能量洗出 3 張強化鬼牌（45 傷害）。`;
+      if (mainBall.roleId === 'nova') return `被動：碰撞洗出 3 張蓋牌，僅 1 張是真牌。真牌會轉向或交換位置；大招鬼牌秀洗出 5 張牌與殘影。`;
       return mainBall.visual.desc;
     }
     function setPanelAvatar(el, roleId) {
@@ -1677,16 +1679,30 @@
       ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       jokerCards.forEach((card, index) => {
         const armed = gameFrame >= (card.armedAt || 0);
+        const mySide = ONLINE_MODE ? onlineRoomData?.me?.side : 'p1';
+        const reveal = card.ownerTag === mySide && card.isReal;
         const pulse = armed ? 1 + Math.sin(gameFrame * 0.18 + index) * 0.08 : 0.82;
         ctx.save(); ctx.translate(card.x, card.y); ctx.rotate((armed ? Math.sin(gameFrame * 0.05 + index) : 0) * 0.10); ctx.scale(pulse, pulse);
-        ctx.shadowBlur = armed ? 20 : 5; ctx.shadowColor = card.isUltimate ? '#facc15' : '#a855f7';
-        ctx.fillStyle = armed ? (card.isUltimate ? '#fef3c7' : '#f3e8ff') : 'rgba(148,163,184,0.65)';
-        ctx.strokeStyle = card.isUltimate ? '#f59e0b' : '#a855f7'; ctx.lineWidth = 4;
+        ctx.shadowBlur = armed ? 20 : 5; ctx.shadowColor = reveal ? '#facc15' : '#a855f7';
+        ctx.fillStyle = armed ? (reveal ? '#fef3c7' : '#312e81') : 'rgba(71,85,105,0.72)';
+        ctx.strokeStyle = reveal ? '#f59e0b' : '#c4b5fd'; ctx.lineWidth = 4;
         ctx.fillRect(-24, -34, 48, 68); ctx.strokeRect(-24, -34, 48, 68);
-        ctx.fillStyle = card.isUltimate ? '#b45309' : '#7e22ce'; ctx.font = 'bold 32px sans-serif'; ctx.fillText('★', 0, 2);
+        ctx.fillStyle = reveal ? '#b45309' : '#ede9fe'; ctx.font = 'bold 30px sans-serif'; ctx.fillText(reveal ? (card.effect === 'swap' ? '↔' : '★') : '🃏', 0, 2);
         ctx.restore();
       });
       ctx.restore();
+    }
+
+    function drawJokerMirages() {
+      if (diagnosticEffectsDisabled) return;
+      for (const ball of balls) {
+        if (ball.roleId !== 'nova' || ball.isClone || !(ball.jokerShowTimer > 0)) continue;
+        for (let index = 0; index < 3; index++) {
+          const angle = gameFrame * 0.065 + index * Math.PI * 2 / 3;
+          const distance = 48 + Math.sin(gameFrame * 0.12 + index) * 10;
+          ball.drawAt(ball.x + Math.cos(angle) * distance, ball.y + Math.sin(angle) * distance, 0.78, 0.22);
+        }
+      }
     }
 
     function drawMagmaPools() {
@@ -1806,26 +1822,32 @@
       colosseumState = { active: true, timer: 180, x, y, radius: Math.min(330, Math.max(240, Math.hypot(target.x - ball.x, target.y - ball.y) / 2 + ball.radius + 20)), ownerTag: ball.playerTag, nextDamageFrame: gameFrame };
     }
 
-    function spawnLocalJokerCard(ownerBall, x, y, damage = 35, isUltimate = false) {
-      if (!ownerBall) return;
-      if (!isUltimate) {
-        const passiveCards = jokerCards.filter(card => card.ownerTag === ownerBall.playerTag && !card.isUltimate);
-        while (passiveCards.length >= 2) {
-          const oldest = passiveCards.shift(); const index = jokerCards.indexOf(oldest);
-          if (index >= 0) jokerCards.splice(index, 1);
-        }
+    function spawnLocalJokerCard(ownerBall, x, y, damage, isUltimate, isReal, effect) {
+      jokerCards.push({ x: Math.max(BASE_RADIUS, Math.min(750 - BASE_RADIUS, x)), y: Math.max(BASE_RADIUS, Math.min(750 - BASE_RADIUS, y)), ownerTag: ownerBall.playerTag, damage, isUltimate, isReal, effect, life: 180, armedAt: gameFrame + 18 });
+    }
+
+    function spawnLocalJokerHand(ownerBall, target, isUltimate = false) {
+      if (!ownerBall || !target) return;
+      if (!isUltimate) jokerCards = jokerCards.filter(card => card.ownerTag !== ownerBall.playerTag || card.isUltimate);
+      const count = isUltimate ? 5 : 3;
+      const realIndexes = isUltimate ? [localJokerTrickIndex % count, (localJokerTrickIndex + 2) % count] : [localJokerTrickIndex % count];
+      const direction = Math.atan2(target.vy, target.vx);
+      for (let index = 0; index < count; index++) {
+        const spread = (index / (count - 1) - 0.5) * (isUltimate ? 2.6 : 1.9);
+        const isReal = realIndexes.includes(index);
+        const effect = isReal && (localJokerTrickIndex + index) % 2 === 1 ? 'swap' : 'turn';
+        const distance = isUltimate ? 165 : 135;
+        spawnLocalJokerCard(ownerBall, target.x + Math.cos(direction + spread) * distance, target.y + Math.sin(direction + spread) * distance, isUltimate ? 38 : 30, isUltimate, isReal, effect);
       }
-      jokerCards.push({ x: Math.max(BASE_RADIUS, Math.min(750 - BASE_RADIUS, x)), y: Math.max(BASE_RADIUS, Math.min(750 - BASE_RADIUS, y)), ownerTag: ownerBall.playerTag, damage, isUltimate, life: 180, armedAt: gameFrame + 18 });
+      localJokerTrickIndex++;
     }
 
     function triggerJokerUltimate(ball) {
       const target = getMainBall(ball.playerTag === 'p1' ? 'p2' : 'p1');
       if (!target) return;
       ball.energy = 0;
-      for (let index = 0; index < 3; index++) {
-        const angle = -Math.PI / 2 + index * Math.PI * 2 / 3;
-        spawnLocalJokerCard(ball, target.x + Math.cos(angle) * 155, target.y + Math.sin(angle) * 155, 45, true);
-      }
+      ball.jokerShowTimer = 180;
+      spawnLocalJokerHand(ball, target, true);
     }
 
     function updateLocalJokerCards() {
@@ -1835,9 +1857,15 @@
         if (gameFrame < card.armedAt) continue;
         const target = getMainBall(card.ownerTag === 'p1' ? 'p2' : 'p1');
         const owner = getMainBall(card.ownerTag);
-        if (!target || !owner || Math.hypot(target.x - card.x, target.y - card.y) > target.radius + 26) continue;
-        applyDamage(owner, target, getCombinedDamageAfterReduction(card.damage, target), 2, null);
-        const vx = target.vx, vy = target.vy; target.vx = -vy; target.vy = vx;
+        if (!target || !owner || Math.hypot(target.x - card.x, target.y - card.y) > target.radius + 28) continue;
+        if (card.isReal) {
+          applyDamage(owner, target, getCombinedDamageAfterReduction(card.damage, target), 2, null);
+          if (card.effect === 'swap') {
+            const ownerX = owner.x, ownerY = owner.y; owner.x = target.x; owner.y = target.y; target.x = ownerX; target.y = ownerY;
+          } else {
+            const vx = target.vx, vy = target.vy; target.vx = -vy; target.vy = vx;
+          }
+        }
         jokerCards.splice(index, 1);
         handlePostDamage(); if (gameOver) return;
       }
@@ -2190,6 +2218,7 @@
 
       for (let ball of balls) {
         if (ball.magmaStacks > 0 && gameFrame > (ball.magmaStacksUntil || 0)) ball.magmaStacks = 0;
+        if (!ONLINE_MODE && ball.jokerShowTimer > 0) ball.jokerShowTimer--;
         if (ball.isClone) {
           ball.lifeFrames = (ball.lifeFrames || 0) + 1;
           if (ball.lifeFrames >= 720) ball.hp = 0;
@@ -2367,6 +2396,7 @@
       drawMagmaPools();
       drawColosseum();
       drawJokerCards();
+      drawJokerMirages();
 
       if (openingAnimation.active) {
         drawOpeningCinematic();
@@ -2434,6 +2464,7 @@
       magmaPools = [];
       colosseumState = { active: false, timer: 0, x: 0, y: 0, ownerTag: null };
       jokerCards = [];
+      localJokerTrickIndex = 0;
       projectiles = [];
       swordFlashEffects = [];
       timeStopState = { active: false, frame: 0, ownerTag: null, targetTag: null, consumedCloneIds: [], missileFired: false };
@@ -2598,6 +2629,7 @@
               }
               localBall.hp = serverBall.hp;
               localBall.energy = serverBall.energy;
+              localBall.jokerShowTimer = Math.max(0, Number(serverBall.jokerShowTimer) || 0);
 
               // 伺服器狀態作為大招事件的備援，避免剛好漏掉即時事件時大招被吃掉。
               const serverUltimateNonce = Number(serverBall.ultimateNonce) || 0;
