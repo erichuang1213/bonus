@@ -1024,13 +1024,14 @@
     function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]); }
 
     const ROLE_VISUALS = {
-      speeder: { name: '⚡ 疾風球', desc: '速度極快，血量統一 2000', icon: '⚡', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6b81', '#ff4757'] }, cardStyle: { borderColor: '#ff4757', glowColor: 'rgba(255, 71, 87, 0.4)', nameColor: '#ff4757' } },
-      tank: { name: '🛡️ 鐵壁球', desc: '血厚防高，血量統一 2000', icon: '🛡️', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 3, innerGradient: ['#7bed9f', '#2ed573'] }, cardStyle: { borderColor: '#2ed573', glowColor: 'rgba(46, 213, 115, 0.4)', nameColor: '#2ed573' } },
-      frenzy: { name: '🗡️ 狂暴', desc: '常駐反傷 2%，受擊回復 5 能量', icon: '🗡️', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6666', '#ff3333'] }, cardStyle: { borderColor: '#ff3333', glowColor: 'rgba(255, 51, 51, 0.4)', nameColor: '#ff3333' } },
-      magma: { name: '🌋 熔岩巨獸', desc: '鋪設岩漿、灼燒爆發與火山封鎖', icon: '🌋', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9f43', '#ee5253'] }, cardStyle: { borderColor: '#ee5253', glowColor: 'rgba(238, 82, 83, 0.4)', nameColor: '#ee5253' } },
-      nova: { name: '🃏 鬼牌小丑', desc: '落牌設局，扭轉對手走位', icon: '🃏', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#facc15', '#a855f7'] }, cardStyle: { borderColor: '#a855f7', glowColor: 'rgba(168, 85, 247, 0.45)', nameColor: '#d8b4fe' } },
-      clone: { name: '👥 影分身', desc: '只有此角色擁有大型飛彈與時間靜止領域', icon: '👥', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9ff3', '#ff6b9d'] }, cardStyle: { borderColor: '#ff6b9d', glowColor: 'rgba(255, 107, 157, 0.4)', nameColor: '#ff6b9d' } }
+      speeder: { name: '⚡ 疾風球', desc: '速度極快，血量統一 2000', icon: '⚡', image: '', defaultImage: '/assets/heroes/speeder.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6b81', '#ff4757'] }, cardStyle: { borderColor: '#62e6ff', glowColor: 'rgba(98, 230, 255, 0.4)', nameColor: '#62e6ff' } },
+      tank: { name: '🛡️ 鐵壁球', desc: '血厚防高，血量統一 2000', icon: '🛡️', image: '', defaultImage: '/assets/heroes/tank.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 3, innerGradient: ['#7bed9f', '#2ed573'] }, cardStyle: { borderColor: '#38e77c', glowColor: 'rgba(56, 231, 124, 0.4)', nameColor: '#38e77c' } },
+      frenzy: { name: '🗡️ 狂暴', desc: '常駐反傷 2%，受擊回復 5 能量', icon: '🗡️', image: '', defaultImage: '/assets/heroes/frenzy.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6666', '#ff3333'] }, cardStyle: { borderColor: '#ff4040', glowColor: 'rgba(255, 64, 64, 0.4)', nameColor: '#ff6262' } },
+      magma: { name: '🌋 熔岩巨獸', desc: '鋪設岩漿、灼燒爆發與火山封鎖', icon: '🌋', image: '', defaultImage: '/assets/heroes/magma.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9f43', '#ee5253'] }, cardStyle: { borderColor: '#ff813d', glowColor: 'rgba(255, 129, 61, 0.4)', nameColor: '#ff9b4a' } },
+      nova: { name: '🃏 鬼牌小丑', desc: '落牌設局，扭轉對手走位', icon: '🃏', image: '', defaultImage: '/assets/heroes/nova.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#facc15', '#a855f7'] }, cardStyle: { borderColor: '#c084fc', glowColor: 'rgba(192, 132, 252, 0.45)', nameColor: '#d8b4fe' } },
+      clone: { name: '👥 影分身', desc: '只有此角色擁有大型飛彈與時間靜止領域', icon: '👥', image: '', defaultImage: '/assets/heroes/clone.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9ff3', '#ff6b9d'] }, cardStyle: { borderColor: '#7775ff', glowColor: 'rgba(119, 117, 255, 0.4)', nameColor: '#a5a6ff' } }
     };
+    function getRoleImage(visual) { return visual?.image || visual?.defaultImage || ''; }
     const GLOBAL_BASE_SPEED = 10, BASE_RADIUS = 100;
     const ROLES = [
       { id: 'speeder', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'none' },
@@ -1059,7 +1060,7 @@
             const thumb = document.getElementById(`thumb-${roleId}`);
             if (thumb) { thumb.src = dataUrl; thumb.style.display = 'inline'; }
             updateCarousel(); updateSidePanels();
-            balls.forEach(b => { if (b.roleId === roleId) b.ballImageObj = b.visual.image ? loadImage(b.visual.image) : null; });
+            balls.forEach(b => { if (b.roleId === roleId) b.ballImageObj = loadImage(getRoleImage(b.visual)); });
           };
           reader.readAsDataURL(file);
         });
@@ -1070,7 +1071,7 @@
           const thumb = document.getElementById(`thumb-${roleId}`);
           if (thumb) { thumb.src = ''; thumb.style.display = 'none'; }
           updateCarousel(); updateSidePanels();
-          balls.forEach(b => { if (b.roleId === roleId) b.ballImageObj = null; });
+          balls.forEach(b => { if (b.roleId === roleId) b.ballImageObj = loadImage(getRoleImage(b.visual)); });
         });
       });
     }
@@ -1091,8 +1092,9 @@
 
     function updateCarousel() {
       const r = ROLES[currentIndex]; const visual = ROLE_VISUALS[r.id];
-      if (visual.image) {
-        const img = loadImage(visual.image); roleIcon.innerHTML = '';
+      const roleImage = getRoleImage(visual);
+      if (roleImage) {
+        const img = loadImage(roleImage); roleIcon.innerHTML = '';
         if (isImageReady(img)) roleIcon.appendChild(img); else { img.onload = () => updateCarousel(); roleIcon.textContent = visual.icon; }
       } else roleIcon.innerHTML = visual.icon;
       roleIcon.style.borderColor = visual.cardStyle.borderColor; roleIcon.style.boxShadow = `0 0 20px ${visual.cardStyle.glowColor}`;
@@ -1505,7 +1507,7 @@
         this.energy = 0; this.maxEnergy = MAX_ENERGY; this.missileCooldown = 0; this.bigMissileCooldown = 0;
         this.isClone = options.isClone || false; this.parentId = options.parentId || null; this.lifeFrames = options.lifeFrames || null; this.isDead = false;
         this.collisionTag = options.collisionTag || (playerTag + '_' + Math.random().toString(36).slice(2, 9));
-        this.lastCollision = {}; this.heavyInjury = false; this.ballImageObj = options.imageData ? loadImage(options.imageData) : (this.visual.image ? loadImage(this.visual.image) : null);
+        this.lastCollision = {}; this.heavyInjury = false; this.ballImageObj = options.imageData ? loadImage(options.imageData) : loadImage(getRoleImage(this.visual));
         if (options.baseSpeedScale) this.baseSpeed *= options.baseSpeedScale;
         if (options.customVelocity) { this.vx = options.customVelocity.vx; this.vy = options.customVelocity.vy; }
         else { const s = Math.sqrt(this.vx * this.vx + this.vy * this.vy); if (s > 0.001) { this.vx = (this.vx / s) * this.baseSpeed; this.vy = (this.vy / s) * this.baseSpeed; } }
@@ -1604,8 +1606,8 @@
       return mainBall.visual.desc;
     }
     function setPanelAvatar(el, roleId) {
-      const visual = ROLE_VISUALS[roleId]; if (!el || !visual) return; const img = visual.image ? loadImage(visual.image) : null;
-      const avatarKey = visual.image || visual.icon;
+      const visual = ROLE_VISUALS[roleId]; if (!el || !visual) return; const roleImage = getRoleImage(visual); const img = roleImage ? loadImage(roleImage) : null;
+      const avatarKey = roleImage || visual.icon;
       if (el.dataset.avatarKey === avatarKey) return;
       el.dataset.avatarKey = avatarKey;
       if (img && isImageReady(img)) { el.innerHTML = ''; const cloned = document.createElement('img'); cloned.src = img.src; el.appendChild(cloned); } else el.innerHTML = visual.icon;
@@ -1623,7 +1625,7 @@
       ];
       configs.forEach(cfg => {
         if (!cfg.roleId) return; const baseRole = getRoleData(cfg.roleId); const visual = ROLE_VISUALS[cfg.roleId]; const mainBall = getMainBall(cfg.tag);
-        const staticKey = `${cfg.roleId}:${visual.image || ''}`;
+        const staticKey = `${cfg.roleId}:${getRoleImage(visual)}`;
         if (cfg.role.dataset.staticKey !== staticKey) {
           cfg.role.dataset.staticKey = staticKey;
           setPanelAvatar(cfg.avatar, cfg.roleId); cfg.role.textContent = visual.name; cfg.role.style.color = visual.cardStyle.nameColor; cfg.desc.textContent = visual.desc;
@@ -2612,7 +2614,7 @@
     document.getElementById('btnThemeToggle').addEventListener('click', () => { themeEditor.style.display = themeEditor.style.display === 'block' ? 'none' : 'block'; if (themeEditor.style.display === 'block') imageEditor.style.display = 'none'; });
     document.getElementById('btnImageToggle').addEventListener('click', () => { imageEditor.style.display = imageEditor.style.display === 'block' ? 'none' : 'block'; if (imageEditor.style.display === 'block') themeEditor.style.display = 'none'; });
     document.getElementById('btnCloseImage').addEventListener('click', () => { imageEditor.style.display = 'none'; });
-    document.getElementById('btnClearAllImages').addEventListener('click', () => { ROLES.forEach(r => { ROLE_VISUALS[r.id].image = ''; }); buildImageManager(); updateCarousel(); updateSidePanels(); balls.forEach(b => { b.ballImageObj = null; }); });
+    document.getElementById('btnClearAllImages').addEventListener('click', () => { ROLES.forEach(r => { ROLE_VISUALS[r.id].image = ''; }); buildImageManager(); updateCarousel(); updateSidePanels(); balls.forEach(b => { b.ballImageObj = loadImage(getRoleImage(b.visual)); }); });
 
     document.getElementById('btnApplyTheme').addEventListener('click', () => {
       currentTheme = { bgColor: document.getElementById('bgColor').value, accentColor: document.getElementById('accentColor').value, btnPrimary: document.getElementById('btnPrimary').value, btnPrimaryHover: document.getElementById('btnPrimary').value, cardBg: document.getElementById('cardBg').value, cardBorder: document.getElementById('cardBorder').value, textColor: document.getElementById('textColor').value, descColor: document.getElementById('descColor').value, statsColor: document.getElementById('descColor').value, hpBarBg: '#0f3460', hpBarBorder: '#333333', hpRedStart: document.getElementById('hpRedStart').value, hpRedEnd: document.getElementById('hpRedEnd').value, hpBlueStart: document.getElementById('hpBlueStart').value, hpBlueEnd: document.getElementById('hpBlueEnd').value, energyBarBg: '#1a1a2e', energyBarBorder: '#444444', energyStart: document.getElementById('energyStart').value, energyEnd: document.getElementById('energyEnd').value, energyFullStart: document.getElementById('energyFullStart').value, energyFullEnd: document.getElementById('energyFullEnd').value, canvasBg: document.getElementById('cardBg').value, roleDisplayBg: document.getElementById('cardBorder').value, roleDisplayBorder: document.getElementById('cardBorder').value, gridColor: document.getElementById('cardBorder').value };
