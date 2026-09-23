@@ -1028,7 +1028,7 @@
       tank: { name: '🛡️ 鐵壁球', desc: '血厚防高，血量統一 2000', icon: '🛡️', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 3, innerGradient: ['#7bed9f', '#2ed573'] }, cardStyle: { borderColor: '#2ed573', glowColor: 'rgba(46, 213, 115, 0.4)', nameColor: '#2ed573' } },
       frenzy: { name: '🗡️ 狂暴', desc: '常駐反傷 2%，受擊回復 5 能量', icon: '🗡️', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6666', '#ff3333'] }, cardStyle: { borderColor: '#ff3333', glowColor: 'rgba(255, 51, 51, 0.4)', nameColor: '#ff3333' } },
       magma: { name: '🌋 熔岩巨獸', desc: '鋪設岩漿、灼燒爆發與火山封鎖', icon: '🌋', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9f43', '#ee5253'] }, cardStyle: { borderColor: '#ee5253', glowColor: 'rgba(238, 82, 83, 0.4)', nameColor: '#ee5253' } },
-      nova: { name: '🌠 幻星', desc: '引力支配者，碰撞具強大斥力，大招開啟黑洞', icon: '🌠', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#00d2d3', '#5f27cd'] }, cardStyle: { borderColor: '#5f27cd', glowColor: 'rgba(95, 39, 205, 0.4)', nameColor: '#5f27cd' } },
+      nova: { name: '🃏 鬼牌小丑', desc: '落牌設局，扭轉對手走位', icon: '🃏', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#facc15', '#a855f7'] }, cardStyle: { borderColor: '#a855f7', glowColor: 'rgba(168, 85, 247, 0.45)', nameColor: '#d8b4fe' } },
       clone: { name: '👥 影分身', desc: '只有此角色擁有大型飛彈與時間靜止領域', icon: '👥', image: '', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9ff3', '#ff6b9d'] }, cardStyle: { borderColor: '#ff6b9d', glowColor: 'rgba(255, 107, 157, 0.4)', nameColor: '#ff6b9d' } }
     };
     const GLOBAL_BASE_SPEED = 10, BASE_RADIUS = 70;
@@ -1037,7 +1037,7 @@
       { id: 'tank', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'none' },
       { id: 'frenzy', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'sword' },
       { id: 'magma', hp: 2400, speed: 9.2, radius: BASE_RADIUS, skill: 'magma' },
-      { id: 'nova', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'nova' },
+      { id: 'nova', hp: 1900, speed: 11, radius: BASE_RADIUS, skill: 'joker' },
       { id: 'clone', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'missile' }
     ];
 
@@ -1270,7 +1270,7 @@
       magmaPattern = ctx.createPattern(tempCanvas, 'repeat');
     };
     let colosseumState = { active: false, timer: 0, x: 0, y: 0, radius: 180, ownerTag: null };
-    let blackHoleState = { active: false, timer: 0, x: 0, y: 0, ownerTag: null }; let timeStopState = { active: false, frame: 0, ownerTag: null, targetTag: null, consumedCloneIds: [], missileFired: false };
+    let jokerCards = []; let timeStopState = { active: false, frame: 0, ownerTag: null, targetTag: null, consumedCloneIds: [], missileFired: false };
 
     const hpRedBar = document.getElementById('hpRedBar'), hpBlueBar = document.getElementById('hpBlueBar'), hpRedText = document.getElementById('hpRedText'), hpBlueText = document.getElementById('hpBlueText'), energyRedBar = document.getElementById('energyRedBar'), energyBlueBar = document.getElementById('energyBlueBar'), nameRed = document.getElementById('nameRed'), nameBlue = document.getElementById('nameBlue'), winnerText = document.getElementById('winnerText');
     let battleStats = null;
@@ -1409,8 +1409,8 @@
         if (!a.isClone && !b.isClone) lastCombatFrame = gameFrame;
         if (!(a.canCollideWith(b) && b.canCollideWith(a))) return;
 
-        let damageFromA = a.isClone ? 5 : (a.roleId === 'magma' ? 35 + Math.min(5, b.magmaStacks || 0) * 5 : (a.roleId === 'clone' ? 0 : BODY_DAMAGE));
-        let damageFromB = b.isClone ? 5 : (b.roleId === 'magma' ? 35 + Math.min(5, a.magmaStacks || 0) * 5 : (b.roleId === 'clone' ? 0 : BODY_DAMAGE));
+        let damageFromA = a.isClone ? 5 : (a.roleId === 'magma' ? 35 + Math.min(5, b.magmaStacks || 0) * 5 : (a.roleId === 'nova' ? 40 : (a.roleId === 'clone' ? 0 : BODY_DAMAGE)));
+        let damageFromB = b.isClone ? 5 : (b.roleId === 'magma' ? 35 + Math.min(5, a.magmaStacks || 0) * 5 : (b.roleId === 'nova' ? 40 : (b.roleId === 'clone' ? 0 : BODY_DAMAGE)));
         if (b.heavyInjury && a.roleId !== 'frenzy') damageFromA *= 2;
         if (a.heavyInjury && b.roleId !== 'frenzy') damageFromB *= 2;
         damageFromA = getCombinedDamageAfterReduction(damageFromA, b);
@@ -1424,6 +1424,8 @@
 
         if (a.roleId === 'magma') b.magmaStacks = Math.max(0, (b.magmaStacks || 0) - 2);
         if (b.roleId === 'magma') a.magmaStacks = Math.max(0, (a.magmaStacks || 0) - 2);
+        if (!ONLINE_MODE && a.roleId === 'nova' && !a.isClone) spawnLocalJokerCard(a, b.x, b.y);
+        if (!ONLINE_MODE && b.roleId === 'nova' && !b.isClone) spawnLocalJokerCard(b, a.x, a.y);
 
         if (!ONLINE_MODE) {
           if (a.roleId === 'frenzy' && !a.isClone && a.energy >= MAX_ENERGY) triggerFrenzyUltimate(a);
@@ -1547,7 +1549,7 @@
       if (mainBall.roleId === 'frenzy') return `劍砍 ${SWORD_DAMAGE} / 碰撞 ${BODY_DAMAGE}`;
       if (mainBall.roleId === 'clone') return `飛彈 ${MISSILE_DAMAGE} / 大飛彈 ${BIG_MISSILE_DAMAGE}`;
       if (mainBall.roleId === 'magma') return `碰撞 35+灼燒爆發 / 燃燒 12~20`;
-      if (mainBall.roleId === 'nova') return `碰撞 50 / 黑洞 25`;
+      if (mainBall.roleId === 'nova') return `碰撞 40 / 鬼牌 35`;
       return `碰撞 ${BODY_DAMAGE}`;
     }
     function getRoleNote(mainBall) {
@@ -1555,7 +1557,7 @@
       if (mainBall.roleId === 'clone') return `分身達到 ${CLONE_TRIGGER_COUNT} 個且大招冷卻完成時，觸發時間靜止領域。`;
       if (mainBall.roleId === 'frenzy') return `被動：反傷 2%，每次受擊 +5 能量。偷速層數 ${mainBall.frenzyStacks || 0} / ${FRENZY_MAX_STACKS}；層數減傷 ${Math.round((mainBall.damageReduction || 0) * 100)}%${mainBall.ultimateTimer > 0 ? `，暴走減傷 40%` : ''}。`;
       if (mainBall.roleId === 'magma') return `走過留下岩漿(3.5秒)疊加灼燒；碰撞消耗 2 層造成爆發。大招展開火山封鎖。`;
-      if (mainBall.roleId === 'nova') return `引力支配者，碰撞具備強大斥力。大招開啟黑洞，吸入並撕裂對手。`;
+      if (mainBall.roleId === 'nova') return `被動：碰撞留下鬼牌（最多 2 張）；踩牌受 35 傷害並轉向 90°。滿能量洗出 3 張強化鬼牌（45 傷害）。`;
       return mainBall.visual.desc;
     }
     function setPanelAvatar(el, roleId) {
@@ -1670,14 +1672,21 @@
       ctx.restore();
     }
 
-    function drawBlackHole() {
-      if (diagnosticEffectsDisabled || !blackHoleState.active) return;
-      ctx.save(); const cx = blackHoleState.x, cy = blackHoleState.y;
-      ctx.translate(cx, cy); ctx.rotate(gameFrame * 0.1);
-      const grad = ctx.createRadialGradient(0, 0, 30, 0, 0, 150);
-      grad.addColorStop(0, `rgba(150, 0, 255, 0.8)`); grad.addColorStop(0.3, `rgba(0, 200, 255, 0.4)`); grad.addColorStop(1, `rgba(0, 0, 0, 0)`);
-      ctx.fillStyle = grad; ctx.beginPath(); ctx.ellipse(0, 0, 150, 120, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(0, 0, 40, 0, Math.PI * 2); ctx.fillStyle = '#000000'; ctx.shadowBlur = 20; ctx.shadowColor = '#8c00ff'; ctx.fill(); ctx.restore();
+    function drawJokerCards() {
+      if (diagnosticEffectsDisabled || jokerCards.length === 0) return;
+      ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      jokerCards.forEach((card, index) => {
+        const armed = gameFrame >= (card.armedAt || 0);
+        const pulse = armed ? 1 + Math.sin(gameFrame * 0.18 + index) * 0.08 : 0.82;
+        ctx.save(); ctx.translate(card.x, card.y); ctx.rotate((armed ? Math.sin(gameFrame * 0.05 + index) : 0) * 0.10); ctx.scale(pulse, pulse);
+        ctx.shadowBlur = armed ? 20 : 5; ctx.shadowColor = card.isUltimate ? '#facc15' : '#a855f7';
+        ctx.fillStyle = armed ? (card.isUltimate ? '#fef3c7' : '#f3e8ff') : 'rgba(148,163,184,0.65)';
+        ctx.strokeStyle = card.isUltimate ? '#f59e0b' : '#a855f7'; ctx.lineWidth = 4;
+        ctx.fillRect(-24, -34, 48, 68); ctx.strokeRect(-24, -34, 48, 68);
+        ctx.fillStyle = card.isUltimate ? '#b45309' : '#7e22ce'; ctx.font = 'bold 32px sans-serif'; ctx.fillText('★', 0, 2);
+        ctx.restore();
+      });
+      ctx.restore();
     }
 
     function drawMagmaPools() {
@@ -1795,6 +1804,43 @@
       if (!target) return;
       const x = (ball.x + target.x) / 2, y = (ball.y + target.y) / 2;
       colosseumState = { active: true, timer: 180, x, y, radius: Math.min(330, Math.max(240, Math.hypot(target.x - ball.x, target.y - ball.y) / 2 + ball.radius + 20)), ownerTag: ball.playerTag, nextDamageFrame: gameFrame };
+    }
+
+    function spawnLocalJokerCard(ownerBall, x, y, damage = 35, isUltimate = false) {
+      if (!ownerBall) return;
+      if (!isUltimate) {
+        const passiveCards = jokerCards.filter(card => card.ownerTag === ownerBall.playerTag && !card.isUltimate);
+        while (passiveCards.length >= 2) {
+          const oldest = passiveCards.shift(); const index = jokerCards.indexOf(oldest);
+          if (index >= 0) jokerCards.splice(index, 1);
+        }
+      }
+      jokerCards.push({ x: Math.max(BASE_RADIUS, Math.min(750 - BASE_RADIUS, x)), y: Math.max(BASE_RADIUS, Math.min(750 - BASE_RADIUS, y)), ownerTag: ownerBall.playerTag, damage, isUltimate, life: 180, armedAt: gameFrame + 18 });
+    }
+
+    function triggerJokerUltimate(ball) {
+      const target = getMainBall(ball.playerTag === 'p1' ? 'p2' : 'p1');
+      if (!target) return;
+      ball.energy = 0;
+      for (let index = 0; index < 3; index++) {
+        const angle = -Math.PI / 2 + index * Math.PI * 2 / 3;
+        spawnLocalJokerCard(ball, target.x + Math.cos(angle) * 155, target.y + Math.sin(angle) * 155, 45, true);
+      }
+    }
+
+    function updateLocalJokerCards() {
+      for (let index = jokerCards.length - 1; index >= 0; index--) {
+        const card = jokerCards[index]; card.life--;
+        if (card.life <= 0) { jokerCards.splice(index, 1); continue; }
+        if (gameFrame < card.armedAt) continue;
+        const target = getMainBall(card.ownerTag === 'p1' ? 'p2' : 'p1');
+        const owner = getMainBall(card.ownerTag);
+        if (!target || !owner || Math.hypot(target.x - card.x, target.y - card.y) > target.radius + 26) continue;
+        applyDamage(owner, target, getCombinedDamageAfterReduction(card.damage, target), 2, null);
+        const vx = target.vx, vy = target.vy; target.vx = -vy; target.vy = vx;
+        jokerCards.splice(index, 1);
+        handlePostDamage(); if (gameOver) return;
+      }
     }
 
     function refreshFrenzyStacks(ball, targetBall) {
@@ -2172,6 +2218,7 @@
           if (ball.roleId === 'clone') summonClones(ball);
           else if (ball.roleId === 'frenzy' && !ball.isUltimateActive) triggerFrenzyUltimate(ball);
           else if (ball.roleId === 'magma') triggerMagmaUltimate(ball);
+          else if (ball.roleId === 'nova') triggerJokerUltimate(ball);
           else ball.energy = 0;
           updateHpUI();
         }
@@ -2250,24 +2297,7 @@
         }
       }
 
-      if (blackHoleState.active) {
-        blackHoleState.timer--;
-        if (blackHoleState.timer <= 0) blackHoleState.active = false;
-        else {
-          const ownerBall = getMainBall(blackHoleState.ownerTag);
-          const isMyHole = !ONLINE_MODE;
-          if (isMyHole && ownerBall) {
-            for (let target of balls) {
-              if (target.isClone || target.playerTag === blackHoleState.ownerTag || target.isDead) continue;
-              const d = Math.hypot(target.x - blackHoleState.x, target.y - blackHoleState.y);
-              if (d < target.radius + 40 && target.burnCooldown <= 0) {
-                applyDamage(ownerBall, target, getCombinedDamageAfterReduction(25, target), 2, 'blackHole');
-                target.burnCooldown = 15;
-              }
-            }
-          }
-        }
-      }
+      if (!ONLINE_MODE) updateLocalJokerCards();
       for (let p of projectiles) p.update();
       checkProjectileCollisions();
       if (gameOver) return;
@@ -2336,7 +2366,7 @@
       drawGrid();
       drawMagmaPools();
       drawColosseum();
-      drawBlackHole();
+      drawJokerCards();
 
       if (openingAnimation.active) {
         drawOpeningCinematic();
@@ -2403,7 +2433,7 @@
       // 🟢 1. 終極清理：確保前一局的所有環境特效被徹底清空
       magmaPools = [];
       colosseumState = { active: false, timer: 0, x: 0, y: 0, ownerTag: null };
-      blackHoleState = { active: false, timer: 0, x: 0, y: 0, ownerTag: null };
+      jokerCards = [];
       projectiles = [];
       swordFlashEffects = [];
       timeStopState = { active: false, frame: 0, ownerTag: null, targetTag: null, consumedCloneIds: [], missileFired: false };
@@ -2542,7 +2572,7 @@
             }
             if (Array.isArray(serverState.magmaPools)) magmaPools = serverState.magmaPools;
             if (Object.prototype.hasOwnProperty.call(serverState, 'colosseum')) colosseumState = serverState.colosseum || { active: false, timer: 0, x: 0, y: 0, ownerTag: null };
-            if (Object.prototype.hasOwnProperty.call(serverState, 'blackHole')) blackHoleState = serverState.blackHole || { active: false, timer: 0, x: 0, y: 0, ownerTag: null };
+            if (Array.isArray(serverState.jokerCards)) jokerCards = serverState.jokerCards;
 
             if (serverState.opening) {
               if (openingAnimation.active) updateOpeningAnimation();
@@ -2595,9 +2625,7 @@
             else if (data.role === 'magma') {
               colosseumState = { active: true, timer: 180, x: data.targetX, y: data.targetY, radius: data.radius || 180, ownerTag: ball.playerTag };
             }
-            else if (data.role === 'nova') {
-              blackHoleState = { active: true, timer: 240, x: data.targetX, y: data.targetY, ownerTag: ball.playerTag };
-            }
+            else if (data.role === 'nova') { /* 鬼牌由伺服器狀態同步，事件不自行生成第二份。 */ }
             else if (ball.roleId === 'frenzy') {
               const receivedNonce = Number(data.ultimateNonce);
               if (!Number.isFinite(receivedNonce) || receivedNonce > (ball.serverUltimateNonce || 0)) {

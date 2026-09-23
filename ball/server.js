@@ -32,8 +32,15 @@ const MAGMA_STACK_DURATION = 240;
 const MAGMA_SLOW_PER_STACK = 0.06;
 const ARENA_DAMAGE = 12;
 const ARENA_DAMAGE_INTERVAL = 30;
-const BLACK_HOLE_DAMAGE = 25;
-const BLACK_HOLE_DAMAGE_INTERVAL = 15;
+const JOKER_MAX_HP = 1900;
+const JOKER_BASE_SPEED = 11;
+const JOKER_BODY_DAMAGE = 40;
+const JOKER_CARD_LIFETIME = 180;
+const JOKER_CARD_ARM_DELAY = 18;
+const JOKER_CARD_RADIUS = 26;
+const JOKER_CARD_DAMAGE = 35;
+const JOKER_ULTIMATE_CARD_DAMAGE = 45;
+const JOKER_MAX_PASSIVE_CARDS = 2;
 const EFFECTS_BROADCAST_INTERVAL = 3;
 const STALE_COMBAT_FRAMES = 300;
 const FRENZY_REFLECT_RATIO = 0.02;
@@ -52,7 +59,6 @@ const HIT_RULES = {
   sword: { role: "frenzy", maxDamage: 20, energy: 10, cooldown: 90, range: 250 },
   magma: { role: "magma", maxDamage: 10, energy: 1, cooldown: 30, range: 210 },
   arena: { role: "magma", maxDamage: 50, energy: 1, cooldown: 30, range: 230 },
-  blackHole: { role: "nova", maxDamage: 25, energy: 2, cooldown: 15, range: 160 },
   missile: { role: "clone", maxDamage: 25, energy: 10, cooldown: 120 },
   bigMissile: { role: "clone", maxDamage: 500, energy: 0, cooldown: 480 },
 };
@@ -62,11 +68,15 @@ function cleanName(value) {
 }
 
 function getServerBaseSpeed(role) {
-  return role === "magma" ? MAGMA_BASE_SPEED : 12.2;
+  if (role === "magma") return MAGMA_BASE_SPEED;
+  if (role === "nova") return JOKER_BASE_SPEED;
+  return 12.2;
 }
 
 function getServerMaxHp(role) {
-  return role === "magma" ? MAGMA_MAX_HP : 2000;
+  if (role === "magma") return MAGMA_MAX_HP;
+  if (role === "nova") return JOKER_MAX_HP;
+  return 2000;
 }
 
 function resetBattlePositions(state) {
@@ -228,19 +238,16 @@ function addServerEnergy(roomId, ballId, amount) {
         });
       }
     } else if (ball.role === "nova") {
-      room.gameState.blackHole = {
-        active: true,
-        timer: 240,
-        x: ARENA_SIZE / 2,
-        y: ARENA_SIZE / 2,
-        ownerTag: ballId,
-        nextDamageFrame: room.gameState.frame,
-      };
+      const enemy = room.gameState.balls.find((candidate) => candidate.id !== ballId);
+      if (!enemy) return;
+      // 大招不是必中傷害：在對手周圍洗出三張強化鬼牌，走位失誤才會踩中。
+      for (let index = 0; index < 3; index++) {
+        const angle = -Math.PI / 2 + index * (Math.PI * 2 / 3);
+        spawnJokerCard(room.gameState, ballId, enemy.x + Math.cos(angle) * 155, enemy.y + Math.sin(angle) * 155, JOKER_ULTIMATE_CARD_DAMAGE, true);
+      }
       io.to(roomId).emit("triggerUltimate", {
         playerId: ballId,
         role: "nova",
-        targetX: ARENA_SIZE / 2,
-        targetY: ARENA_SIZE / 2,
       });
     } else if (ball.role === "frenzy") {
       ball.ultimateNonce = (ball.ultimateNonce || 0) + 1;
@@ -327,7 +334,27 @@ function finishBattle(roomId, winnerId, loserId) {
 function getBodyDamage(ball, target) {
   if (ball.role === "clone") return 0;
   if (ball.role === "magma") return MAGMA_BODY_DAMAGE + Math.min(MAGMA_MAX_STACKS, target?.magmaStacks || 0) * MAGMA_STACK_BONUS_DAMAGE;
+  if (ball.role === "nova") return JOKER_BODY_DAMAGE;
   return BODY_DAMAGE;
+}
+
+function spawnJokerCard(state, ownerTag, x, y, damage = JOKER_CARD_DAMAGE, isUltimate = false) {
+  state.jokerCards ||= [];
+  const safeX = Math.max(BALL_RADIUS, Math.min(ARENA_SIZE - BALL_RADIUS, x));
+  const safeY = Math.max(BALL_RADIUS, Math.min(ARENA_SIZE - BALL_RADIUS, y));
+  if (!isUltimate) {
+    const passiveCards = state.jokerCards.filter((card) => card.ownerTag === ownerTag && !card.isUltimate);
+    while (passiveCards.length >= JOKER_MAX_PASSIVE_CARDS) {
+      const oldest = passiveCards.shift();
+      const index = state.jokerCards.indexOf(oldest);
+      if (index >= 0) state.jokerCards.splice(index, 1);
+    }
+  }
+  state.jokerCards.push({
+    x: safeX, y: safeY, ownerTag, damage,
+    isUltimate, life: JOKER_CARD_LIFETIME,
+    armedAt: state.frame + JOKER_CARD_ARM_DELAY,
+  });
 }
 
 function validateReportedHit(room, attackerId, targetId, damage, hitType) {
@@ -448,13 +475,23 @@ function updateServerEffects(roomId, room) {
     }
   }
 
-  const blackHole = state.blackHole;
-  if (blackHole?.active && state.frame >= (blackHole.nextDamageFrame || 0)) {
-    const target = balls.find((ball) => ball.id !== blackHole.ownerTag);
-    if (target && Math.hypot(target.x - blackHole.x, target.y - blackHole.y) < BALL_RADIUS + 40) {
-      applyServerDamage(roomId, target.id, blackHole.ownerTag, BLACK_HOLE_DAMAGE, 2);
+  for (let index = state.jokerCards.length - 1; index >= 0; index--) {
+    const card = state.jokerCards[index];
+    card.life--;
+    if (card.life <= 0) {
+      state.jokerCards.splice(index, 1);
+      continue;
     }
-    blackHole.nextDamageFrame = state.frame + BLACK_HOLE_DAMAGE_INTERVAL;
+    if (state.frame < card.armedAt) continue;
+    const target = balls.find((ball) => ball.id !== card.ownerTag);
+    if (!target || Math.hypot(target.x - card.x, target.y - card.y) > BALL_RADIUS + JOKER_CARD_RADIUS) continue;
+    applyServerDamage(roomId, target.id, card.ownerTag, card.damage, 2);
+    if (room.phase !== "battle") return;
+    // 鬼牌命中後只改變方向，不加速、也不凍結，避免再製造卡頓感。
+    const vx = target.vx, vy = target.vy;
+    target.vx = -vy;
+    target.vy = vx;
+    state.jokerCards.splice(index, 1);
   }
 }
 function maybeStartBattle(roomId) {
@@ -477,6 +514,7 @@ function maybeStartBattle(roomId) {
       rateLimits: {},
       magmaPools: [],
       colosseum: null,
+      jokerCards: [],
       openingFrames: 0, // 🟢 新增：進場動畫計時器
       balls: [
         // 🟢 加入 baseSpeed: 12.2 (這是 10 和 -7 向量算出來的預設總速度)
@@ -649,7 +687,7 @@ io.on("connection", (socket) => {
       room.gameState.lastCollisionFrame = 0;
       room.gameState.hitCooldowns = {};
       room.gameState.rateLimits = {};
-      room.gameState.blackHole = null;
+      room.gameState.jokerCards = [];
       room.gameState.magmaPools = [];
       room.gameState.colosseum = null;
       delete room.gameState.winnerId;
@@ -807,13 +845,6 @@ setInterval(() => {
       io.to(roomId).emit("battleRepositioned");
     }
 
-    // 1. 更新黑洞計時器
-    if (room.gameState.blackHole && room.gameState.blackHole.active) {
-      room.gameState.blackHole.timer--;
-      if (room.gameState.blackHole.timer <= 0)
-        room.gameState.blackHole.active = false;
-    }
-
     balls.forEach((ball) => {
       // 狂暴大招必須在伺服器維護，否則每幀位置同步會覆蓋前端的速度效果。
       if (ball.frenzyUltimateTimer > 0) {
@@ -878,29 +909,7 @@ setInterval(() => {
         }
       }
 
-      // 2. 🌠 Nova 引力與黑洞物理
-      const enemy = room.gameState.balls.find((b) => b.id !== ball.id);
-      if (enemy && (!ball.rootTimer || ball.rootTimer <= 0)) {
-        if (enemy.role === "nova") {
-          const dx = enemy.x - ball.x,
-            dy = enemy.y - ball.y;
-          const dist = Math.hypot(dx, dy) || 1;
-          if (dist < 250) {
-            ball.x += (dx / dist) * 3.5;
-            ball.y += (dy / dist) * 3.5;
-          }
-        }
-        const bh = room.gameState.blackHole;
-        if (bh && bh.active && bh.ownerTag !== ball.id) {
-          const dx = bh.x - ball.x,
-            dy = bh.y - ball.y;
-          const dist = Math.hypot(dx, dy) || 1;
-          ball.x += (dx / dist) * 3.5;
-          ball.y += (dy / dist) * 3.5;
-        }
-      }
-
-      // 3. 禁錮與邊界碰撞
+      // 2. 禁錮與邊界碰撞
       if (ball.rootTimer && ball.rootTimer > 0) {
         ball.rootTimer--;
       } else {
@@ -943,6 +952,9 @@ setInterval(() => {
         // 碰撞回能與傷害分開：影分身本體雖然不造成碰撞傷害，仍應獲得碰撞能量。
         applyServerDamage(roomId, "p2", "p1", getBodyDamage(b1, b2));
         applyServerDamage(roomId, "p1", "p2", getBodyDamage(b2, b1));
+        // 鬼牌小丑的被動：碰撞落下一張延遲啟動的牌，不能在同一撞瞬間偷吃傷害。
+        if (b1.role === "nova") spawnJokerCard(room.gameState, b1.id, b2.x, b2.y);
+        if (b2.role === "nova") spawnJokerCard(room.gameState, b2.id, b1.x, b1.y);
         if (b1.role === "magma") b2.magmaStacks = Math.max(0, (b2.magmaStacks || 0) - 2);
         if (b2.role === "magma") b1.magmaStacks = Math.max(0, (b1.magmaStacks || 0) - 2);
         addServerEnergy(roomId, "p1", 10);
@@ -1010,7 +1022,7 @@ setInterval(() => {
     if (room.gameState.frame % EFFECTS_BROADCAST_INTERVAL === 0) {
       stateUpdate.magmaPools = room.gameState.magmaPools;
       stateUpdate.colosseum = room.gameState.colosseum;
-      stateUpdate.blackHole = room.gameState.blackHole;
+      stateUpdate.jokerCards = room.gameState.jokerCards;
     }
     io.to(roomId).emit("updateGameState", stateUpdate);
   }
