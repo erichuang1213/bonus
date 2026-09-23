@@ -1,4 +1,5 @@
 const express = require("express");
+const Dawn = require('./public/dawn.js');
 const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
@@ -53,7 +54,7 @@ const FRENZY_ULTIMATE_SPEED = 28;
 const FRENZY_ULTIMATE_DAMAGE_REDUCE = 0.25;
 const MAGMA_MAX_HP = 2400;
 const MAGMA_BASE_SPEED = 9.2;
-const ALLOWED_ROLES = new Set(["speeder", "tank", "frenzy", "magma", "nova", "clone"]);
+const ALLOWED_ROLES = new Set(["speeder", "tank", "frenzy", "magma", "nova", "clone", "dawn"]);
 const MAX_NAME_LENGTH = 24;
 const MAX_IMAGE_DATA_LENGTH = 300_000;
 const HIT_RULES = {
@@ -70,12 +71,14 @@ function cleanName(value) {
 }
 
 function getServerBaseSpeed(role) {
+  if (role === 'dawn') return 10.5;
   if (role === "magma") return MAGMA_BASE_SPEED;
   if (role === "nova") return JOKER_BASE_SPEED;
   return 12.2;
 }
 
 function getServerMaxHp(role) {
+  if (role === 'dawn') return 2200;
   if (role === "magma") return MAGMA_MAX_HP;
   if (role === "nova") return JOKER_MAX_HP;
   return 2000;
@@ -176,6 +179,7 @@ function addServerEnergy(roomId, ballId, amount) {
   if (!ball) return;
 
   if (!Number.isFinite(amount) || amount <= 0) return;
+  if (ball.role === 'dawn') { Dawn.energy(ball, amount); return; }
   ball.energy = Math.min(100, ball.energy + amount);
   if (ball.energy >= 100) {
     ball.energy = 0; // 能量滿，重置
@@ -280,7 +284,8 @@ function applyServerDamage(roomId, targetId, attackerId, damage, energyGain = 0)
   const frenzyReduction = targetBall.role === "frenzy" && targetBall.frenzyUltimateTimer > 0
     ? FRENZY_ULTIMATE_DAMAGE_REDUCE
     : 0;
-  const appliedDamage = Math.max(0, Math.round(safeDamage * (1 - frenzyReduction)));
+  let appliedDamage = Math.max(0, Math.round(safeDamage * (1 - frenzyReduction)));
+  if (targetBall.role === 'dawn') appliedDamage = Dawn.damage(targetBall, appliedDamage);
   targetBall.hp = Math.max(0, targetBall.hp - appliedDamage);
   room.gameState.stats[targetId].totalDamageTaken += appliedDamage;
   room.gameState.stats[attackerId].totalDamageDealt += appliedDamage;
@@ -291,6 +296,7 @@ function applyServerDamage(roomId, targetId, attackerId, damage, energyGain = 0)
     finishBattle(roomId, attackerId, targetId);
     return;
   }
+  if (targetBall.role === 'dawn') Dawn.energy(targetBall, appliedDamage / 20);
 
   // 狂暴的常駐被動：活著承受一次有效傷害時，回能並反射該次傷害的 2%。
   // 直接結算反傷，避免兩名狂暴互相反射造成遞迴傷害。
@@ -299,7 +305,7 @@ function applyServerDamage(roomId, targetId, attackerId, damage, energyGain = 0)
       targetBall.frenzyEnergyUntil = room.gameState.frame + FRENZY_HIT_ENERGY_COOLDOWN;
       addServerEnergy(roomId, targetId, FRENZY_HIT_ENERGY);
     }
-    const reflectDamage = appliedDamage * FRENZY_REFLECT_RATIO;
+    const reflectDamage = attackerBall.role === 'dawn' ? Dawn.damage(attackerBall, appliedDamage * FRENZY_REFLECT_RATIO, true) : appliedDamage * FRENZY_REFLECT_RATIO;
     attackerBall.hp = Math.max(0, attackerBall.hp - reflectDamage);
     room.gameState.stats[attackerId].totalDamageTaken += reflectDamage;
     room.gameState.stats[targetId].totalDamageDealt += reflectDamage;
@@ -331,6 +337,7 @@ function finishBattle(roomId, winnerId, loserId) {
 }
 
 function getBodyDamage(ball, target) {
+  if (ball.role === 'dawn') return Dawn.body(ball);
   if (ball.role === "clone") return 0;
   if (ball.role === "magma") return MAGMA_BODY_DAMAGE + Math.min(MAGMA_MAX_STACKS, target?.magmaStacks || 0) * MAGMA_STACK_BONUS_DAMAGE;
   if (ball.role === "nova") return JOKER_BODY_DAMAGE;
@@ -443,7 +450,7 @@ function updateServerEffects(roomId, room) {
     const stacks = Math.min(MAGMA_MAX_STACKS, target.magmaStacks || 0);
     if (!stacks && !target.magmaSlowApplied) continue;
     const currentSpeed = Math.hypot(target.vx, target.vy) || 1;
-    const baseSpeed = target.frenzyUltimateTimer > 0 ? FRENZY_ULTIMATE_SPEED : (target.baseSpeed || 12.2);
+    const baseSpeed = target.dawnUlt > 0 ? 14 : target.frenzyUltimateTimer > 0 ? FRENZY_ULTIMATE_SPEED : (target.baseSpeed || 12.2);
     const desiredSpeed = baseSpeed * (1 - stacks * MAGMA_SLOW_PER_STACK);
     target.vx = (target.vx / currentSpeed) * desiredSpeed;
     target.vy = (target.vy / currentSpeed) * desiredSpeed;
@@ -868,6 +875,7 @@ setInterval(() => {
     }
 
     balls.forEach((ball) => {
+      if (ball.role === 'dawn') Dawn.tick(ball);
       if (ball.jokerShowTimer > 0) ball.jokerShowTimer--;
       // 狂暴大招必須在伺服器維護，否則每幀位置同步會覆蓋前端的速度效果。
       if (ball.frenzyUltimateTimer > 0) {
@@ -980,8 +988,8 @@ setInterval(() => {
         if (b2.role === "nova") spawnJokerHand(room.gameState, b2, b1);
         if (b1.role === "magma") b2.magmaStacks = Math.max(0, (b2.magmaStacks || 0) - 2);
         if (b2.role === "magma") b1.magmaStacks = Math.max(0, (b1.magmaStacks || 0) - 2);
-        addServerEnergy(roomId, "p1", 10);
-        addServerEnergy(roomId, "p2", 10);
+        if (b1.role !== 'dawn' || b1.dawnBodyCd === 12) addServerEnergy(roomId, "p1", 10);
+        if (b2.role !== 'dawn' || b2.dawnBodyCd === 12) addServerEnergy(roomId, "p2", 10);
         bodyCollisionEvent = true;
       }
 
@@ -1017,7 +1025,7 @@ setInterval(() => {
           if (ball.magmaDecayStage > 0) return;
 
           const currentSpeed = Math.hypot(ball.vx, ball.vy);
-          const targetSpeed = ball.frenzyUltimateTimer > 0 ? FRENZY_ULTIMATE_SPEED : (ball.baseSpeed || 12.2);
+          const targetSpeed = ball.dawnUlt > 0 ? 14 : ball.frenzyUltimateTimer > 0 ? FRENZY_ULTIMATE_SPEED : (ball.baseSpeed || 12.2);
           if (currentSpeed > 0.001) {
             ball.vx = (ball.vx / currentSpeed) * targetSpeed;
             ball.vy = (ball.vy / currentSpeed) * targetSpeed;

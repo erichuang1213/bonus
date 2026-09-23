@@ -1014,6 +1014,7 @@
   </aside>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/dawn.js"></script>
   <script>
     const DEFAULT_THEME = { bgColor: '#1a1a2e', accentColor: '#ffd700', btnPrimary: '#e94560', btnPrimaryHover: '#ff6b81', cardBg: '#16213e', cardBorder: '#0f3460', textColor: '#eeeeee', descColor: '#a0a0a0', statsColor: '#cccccc', hpBarBg: '#0f3460', hpBarBorder: '#333333', hpRedStart: '#ff4d4d', hpRedEnd: '#e94560', hpBlueStart: '#4dabf7', hpBlueEnd: '#00d2ff', energyBarBg: '#1a1a2e', energyBarBorder: '#444444', energyStart: '#ffd700', energyEnd: '#ffaa00', energyFullStart: '#ff5555', energyFullEnd: '#ff0000', canvasBg: '#16213e', roleDisplayBg: '#0f3460', roleDisplayBorder: '#1f4e79', gridColor: '#0f3460' };
     let currentTheme = { ...DEFAULT_THEME };
@@ -1024,6 +1025,7 @@
     function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]); }
 
     const ROLE_VISUALS = {
+      dawn: { name: '☀ 守曦者・無晝', desc: '承傷蓄積餘燼，護盾迎擊，黎明反攻', icon: '☀', image: '', defaultImage: '/assets/heroes/dawn.webp', ballStyle: { borderColor: '#e8c67c', borderWidth: 2, innerGradient: ['#f0d399', '#15263c'] }, cardStyle: { borderColor: '#e8c67c', glowColor: 'rgba(232,198,124,.4)', nameColor: '#e8c67c' } },
       speeder: { name: '⚡ 疾風球', desc: '速度極快，血量統一 2000', icon: '⚡', image: '', defaultImage: '/assets/heroes/speeder.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6b81', '#ff4757'] }, cardStyle: { borderColor: '#62e6ff', glowColor: 'rgba(98, 230, 255, 0.4)', nameColor: '#62e6ff' } },
       tank: { name: '🛡️ 鐵壁球', desc: '血厚防高，血量統一 2000', icon: '🛡️', image: '', defaultImage: '/assets/heroes/tank.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 3, innerGradient: ['#7bed9f', '#2ed573'] }, cardStyle: { borderColor: '#38e77c', glowColor: 'rgba(56, 231, 124, 0.4)', nameColor: '#38e77c' } },
       frenzy: { name: '🗡️ 狂暴', desc: '常駐反傷 2%，受擊回復 5 能量', icon: '🗡️', image: '', defaultImage: '/assets/heroes/frenzy.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6666', '#ff3333'] }, cardStyle: { borderColor: '#ff4040', glowColor: 'rgba(255, 64, 64, 0.4)', nameColor: '#ff6262' } },
@@ -1034,6 +1036,7 @@
     function getRoleImage(visual) { return visual?.image || visual?.defaultImage || ''; }
     const GLOBAL_BASE_SPEED = 10, BASE_RADIUS = 100;
     const ROLES = [
+      { id: 'dawn', hp: 2200, speed: 10.5, radius: BASE_RADIUS, skill: 'dawn' },
       { id: 'speeder', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'none' },
       { id: 'tank', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'none' },
       { id: 'frenzy', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'sword' },
@@ -1307,13 +1310,15 @@
         });
 
         if (!ONLINE_MODE) {
+          if (defenderBall.roleId === 'dawn') damage = Dawn.damage(defenderBall, damage);
           defenderBall.hp = Math.max(0, defenderBall.hp - damage);
+          if (defenderBall.roleId === 'dawn') Dawn.energy(defenderBall, damage / 20);
           if (attackerOwner && defenderOwner && eGain > 0) attackerOwner.addEnergy(eGain);
           addDamageStats(attackerOwner?.playerTag, defenderOwner?.playerTag, damage);
 
           // 狂暴本體的被動：每次承受有效傷害回 5 能量，並反射 2% 給攻擊者。
           if (!defenderBall.isClone && defenderOwner?.roleId === 'frenzy' && defenderBall.hp > 0 && attackerOwner && attackerOwner !== defenderOwner) {
-            const reflectDamage = damage * 0.02;
+            const reflectDamage = attackerOwner.roleId === 'dawn' ? Dawn.damage(attackerOwner, damage * .02, true) : damage * .02;
             if (gameFrame >= (defenderOwner.frenzyEnergyUntil || 0)) {
               defenderOwner.frenzyEnergyUntil = gameFrame + 30;
               defenderOwner.addEnergy(3);
@@ -1413,6 +1418,8 @@
 
         let damageFromA = a.isClone ? 5 : (a.roleId === 'magma' ? 35 + Math.min(5, b.magmaStacks || 0) * 5 : (a.roleId === 'nova' ? 30 : (a.roleId === 'clone' ? 0 : BODY_DAMAGE)));
         let damageFromB = b.isClone ? 5 : (b.roleId === 'magma' ? 35 + Math.min(5, a.magmaStacks || 0) * 5 : (b.roleId === 'nova' ? 30 : (b.roleId === 'clone' ? 0 : BODY_DAMAGE)));
+        if (a.roleId === 'dawn' && !a.isClone) damageFromA = b.isClone ? 40 : Dawn.body(a);
+        if (b.roleId === 'dawn' && !b.isClone) damageFromB = a.isClone ? 40 : Dawn.body(b);
         if (b.heavyInjury && a.roleId !== 'frenzy') damageFromA *= 2;
         if (a.heavyInjury && b.roleId !== 'frenzy') damageFromB *= 2;
         damageFromA = getCombinedDamageAfterReduction(damageFromA, b);
@@ -1502,6 +1509,7 @@
         if (options.absolutePosition) { this.x = options.absolutePosition.x; this.y = options.absolutePosition.y; }
         this.vx = playerTag === 'p1' ? roleData.speed : -roleData.speed; this.vy = playerTag === 'p1' ? roleData.speed * 0.7 : -roleData.speed * 0.7;
         this.baseSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (roleData.id === 'dawn') this.baseSpeed = roleData.speed;
         this.visual = ROLE_VISUALS[roleData.id]; this.hp = options.hp !== undefined ? options.hp : roleData.hp; this.maxHp = options.maxHp !== undefined ? options.maxHp : roleData.hp;
         this.radius = options.radius || roleData.radius; this.playerTag = playerTag; this.roleId = roleData.id; this.skill = options.skill !== undefined ? options.skill : roleData.skill;
         this.energy = 0; this.maxEnergy = MAX_ENERGY; this.missileCooldown = 0; this.bigMissileCooldown = 0;
@@ -1519,6 +1527,11 @@
       drawAt(x = this.x, y = this.y, scale = 1, alphaOverride = null) {
         const style = this.visual.ballStyle; const alpha = alphaOverride !== null ? alphaOverride : (this.isClone ? 0.65 : 1); const img = this.ballImageObj; const hasImage = img && isImageReady(img); const drawRadius = this.radius * scale;
         ctx.save(); ctx.globalAlpha = alpha;
+        if (this.roleId === 'dawn') {
+          ctx.strokeStyle = this.dawnUlt > 0 ? '#fff0ab' : '#e8c67c'; ctx.lineWidth = this.dawnShield > 0 ? 5 : 2;
+          if (this.dawnShield > 0 || this.dawnUlt > 0) { ctx.beginPath(); ctx.arc(x, y, drawRadius + 4, 0, Math.PI * 2); ctx.stroke(); }
+          for (let i = 0; i < Math.floor((this.dawnEmber || 0) / 40); i++) { ctx.beginPath(); ctx.arc(x, y, drawRadius - 8, -Math.PI / 2 + i * .55, -Math.PI / 2 + i * .55 + .35); ctx.stroke(); }
+        }
         if (hasImage) {
           ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(img, x - drawRadius, y - drawRadius, drawRadius * 2, drawRadius * 2); ctx.closePath();
           ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); ctx.strokeStyle = this.heavyInjury ? '#ff0000' : style.borderColor; ctx.lineWidth = this.isClone ? style.borderWidth * 0.75 : style.borderWidth; ctx.stroke(); ctx.closePath();
@@ -1539,7 +1552,7 @@
         }
         this.drawAt(this.x, this.y, 1);
       }
-      addEnergy(amount) { if (this.isClone) return; this.energy = Math.min(this.maxEnergy, this.energy + amount); }
+      addEnergy(amount) { if (this.isClone) return; if (this.roleId === 'dawn') { Dawn.energy(this, amount); return; } this.energy = Math.min(this.maxEnergy, this.energy + amount); }
       canCollideWith(other) { return (gameFrame - (this.lastCollision[other.collisionTag] || -100)) >= COLLISION_COOLDOWN_FRAMES; }
       recordCollision(other) { this.lastCollision[other.collisionTag] = gameFrame; }
     }
@@ -1590,6 +1603,7 @@
     function applyFrenzyUltimateSpeed(ball) { setBallSpeedByCurrentDirection(ball, FRENZY_ULTIMATE_SPEED + ball.frenzyStacks * FRENZY_STEAL_SPEED); }
     function getRoleData(roleId) { return ROLES.find(r => r.id === roleId); }
     function getRoleAttackText(mainBall) {
+      if (mainBall?.roleId === 'dawn') return '碰撞 40／餘燼 +0～40／黎明 +45';
       if (!mainBall) return '-';
       if (mainBall.roleId === 'frenzy') return `劍砍 ${SWORD_DAMAGE} / 碰撞 ${BODY_DAMAGE}`;
       if (mainBall.roleId === 'clone') return `飛彈 ${MISSILE_DAMAGE} / 大飛彈 ${BIG_MISSILE_DAMAGE}`;
@@ -1598,6 +1612,7 @@
       return `碰撞 ${BODY_DAMAGE}`;
     }
     function getRoleNote(mainBall) {
+      if (mainBall?.roleId === 'dawn') return `餘燼 ${Math.floor(mainBall.dawnEmber || 0)}/120 · 護盾 ${Math.ceil(mainBall.dawnShield || 0)} · ${mainBall.dawnUlt > 0 ? '黎明必至 ' + (mainBall.dawnUlt / 60).toFixed(1) + ' 秒' : '每 5 秒迎擊之盾'}`;
       if (!mainBall) return '尚未選定角色';
       if (mainBall.roleId === 'clone') return `分身達到 ${CLONE_TRIGGER_COUNT} 個且大招冷卻完成時，觸發時間靜止領域。`;
       if (mainBall.roleId === 'frenzy') return `被動：反傷 2%，每次受擊 +5 能量。偷速層數 ${mainBall.frenzyStacks || 0} / ${FRENZY_MAX_STACKS}；層數減傷 ${Math.round((mainBall.damageReduction || 0) * 100)}%${mainBall.ultimateTimer > 0 ? `，暴走減傷 40%` : ''}。`;
@@ -1995,8 +2010,8 @@
         b.vx = -bNormal * nx + bTangent * tx; b.vy = -bNormal * ny + bTangent * ty;
 
         const aCurrSpeed = Math.sqrt(a.vx * a.vx + a.vy * a.vy); const bCurrSpeed = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
-        const aTargetSpeed = a.roleId === 'frenzy' && a.ultimateTimer > 0 ? FRENZY_ULTIMATE_SPEED : a.baseSpeed;
-        const bTargetSpeed = b.roleId === 'frenzy' && b.ultimateTimer > 0 ? FRENZY_ULTIMATE_SPEED : b.baseSpeed;
+        const aTargetSpeed = a.dawnUlt > 0 ? 14 : a.roleId === 'frenzy' && a.ultimateTimer > 0 ? FRENZY_ULTIMATE_SPEED : a.baseSpeed;
+        const bTargetSpeed = b.dawnUlt > 0 ? 14 : b.roleId === 'frenzy' && b.ultimateTimer > 0 ? FRENZY_ULTIMATE_SPEED : b.baseSpeed;
         if (aCurrSpeed > 0.001) { a.vx = (a.vx / aCurrSpeed) * aTargetSpeed; a.vy = (a.vy / aCurrSpeed) * aTargetSpeed; }
         if (bCurrSpeed > 0.001) { b.vx = (b.vx / bCurrSpeed) * bTargetSpeed; b.vy = (b.vy / bCurrSpeed) * bTargetSpeed; }
       }
@@ -2260,6 +2275,7 @@
 
 
       for (let ball of balls) {
+        if (!ONLINE_MODE && ball.roleId === 'dawn') Dawn.tick(ball);
         if (ball.magmaStacks > 0 && gameFrame > (ball.magmaStacksUntil || 0)) ball.magmaStacks = 0;
         if (!ONLINE_MODE && ball.jokerShowTimer > 0) ball.jokerShowTimer--;
         if (ball.isClone) {
@@ -2671,6 +2687,7 @@
                 localBall.onlineRenderReady = true;
               }
               localBall.hp = serverBall.hp;
+              if (serverBall.role === 'dawn') for (const key of ['dawnShield', 'dawnEmber', 'dawnUlt', 'dawnHits']) localBall[key] = serverBall[key] || 0;
               localBall.energy = serverBall.energy;
               localBall.jokerShowTimer = Math.max(0, Number(serverBall.jokerShowTimer) || 0);
 
