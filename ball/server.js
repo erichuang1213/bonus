@@ -20,7 +20,7 @@ const roomCleanupTimers = new Map();
 
 // --- 遊戲物理常數 ---
 const ARENA_SIZE = 750;
-const BALL_RADIUS = 80;
+const BALL_RADIUS = 100;
 const BODY_DAMAGE = 50;
 const MAGMA_POOL_LIFETIME = 210;
 const MAGMA_POOL_DAMAGE = 12;

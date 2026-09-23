@@ -195,7 +195,7 @@
       });
       const role = roles.find((item) => item.id === selectedRole) || roles[0];
       roleDetail.style.setProperty("--role-color", role.color);
-      roleDetail.innerHTML = `<h2>${role.name}：詳細資料</h2><dl class="role-detail-grid"><dt>基礎數值</dt><dd>生命 ${role.hp || 2000}／基礎速度 ${role.speed || 12.2}／半徑 80</dd><dt>主要攻擊</dt><dd>${role.attack}</dd><dt>技能數值</dt><dd>${role.numbers}</dd><dt>被動</dt><dd>${role.passive}</dd><dt>大招</dt><dd>${role.ultimate}</dd><dt>選擇狀態</dt><dd>目前已選擇；開始配對後將鎖定。</dd></dl>`;
+      roleDetail.innerHTML = `<h2>${role.name}：詳細資料</h2><dl class="role-detail-grid"><dt>基礎數值</dt><dd>生命 ${role.hp || 2000}／基礎速度 ${role.speed || 12.2}／半徑 100</dd><dt>主要攻擊</dt><dd>${role.attack}</dd><dt>技能數值</dt><dd>${role.numbers}</dd><dt>被動</dt><dd>${role.passive}</dd><dt>大招</dt><dd>${role.ultimate}</dd><dt>選擇狀態</dt><dd>目前已選擇；開始配對後將鎖定。</dd></dl>`;
     }
     renderRoleOptions();
 
