@@ -35,6 +35,7 @@ const ARENA_DAMAGE_INTERVAL = 30;
 const BLACK_HOLE_DAMAGE = 25;
 const BLACK_HOLE_DAMAGE_INTERVAL = 15;
 const EFFECTS_BROADCAST_INTERVAL = 3;
+const STALE_COMBAT_FRAMES = 300;
 const FRENZY_REFLECT_RATIO = 0.02;
 const FRENZY_HIT_ENERGY = 3;
 const FRENZY_HIT_ENERGY_COOLDOWN = 30;
@@ -66,6 +67,16 @@ function getServerBaseSpeed(role) {
 
 function getServerMaxHp(role) {
   return role === "magma" ? MAGMA_MAX_HP : 2000;
+}
+
+function resetBattlePositions(state) {
+  const p1 = state.balls.find((ball) => ball.id === "p1");
+  const p2 = state.balls.find((ball) => ball.id === "p2");
+  if (!p1 || !p2) return;
+  p1.x = 175; p1.y = 575;
+  p1.vx = p1.baseSpeed * 10 / 12.2; p1.vy = p1.baseSpeed * -7 / 12.2;
+  p2.x = 575; p2.y = 175;
+  p2.vx = p2.baseSpeed * -10 / 12.2; p2.vy = p2.baseSpeed * 7 / 12.2;
 }
 
 function isSafeImageData(value) {
@@ -254,6 +265,7 @@ function applyServerDamage(roomId, targetId, attackerId, damage, energyGain = 0)
   const safeDamage = Math.max(0, Math.min(500, Number(damage) || 0));
   const safeEnergyGain = Math.max(0, Math.min(10, Number(energyGain) || 0));
   if (safeDamage <= 0) return;
+  room.gameState.lastCombatFrame = room.gameState.frame;
 
   const targetBall = room.gameState.balls.find((ball) => ball.id === targetId);
   const attackerBall = room.gameState.balls.find((ball) => ball.id === attackerId);
@@ -460,6 +472,7 @@ function maybeStartBattle(roomId) {
     room.phase = "battle";
     room.gameState = {
       frame: 0,
+      lastCombatFrame: 0,
       hitCooldowns: {},
       rateLimits: {},
       magmaPools: [],
@@ -631,6 +644,7 @@ io.on("connection", (socket) => {
     if (allReadyForRematch) {
       // 兩人都同意，重置伺服器端的遊戲狀態
       room.gameState.frame = 0;
+      room.gameState.lastCombatFrame = 0;
       room.gameState.openingFrames = 0;
       room.gameState.lastCollisionFrame = 0;
       room.gameState.hitCooldowns = {};
@@ -787,6 +801,12 @@ setInterval(() => {
     const b1 = balls[0],
       b2 = balls[1];
 
+    if (room.gameState.frame - (room.gameState.lastCombatFrame || 0) >= STALE_COMBAT_FRAMES) {
+      resetBattlePositions(room.gameState);
+      room.gameState.lastCombatFrame = room.gameState.frame;
+      io.to(roomId).emit("battleRepositioned");
+    }
+
     // 1. 更新黑洞計時器
     if (room.gameState.blackHole && room.gameState.blackHole.active) {
       room.gameState.blackHole.timer--;
@@ -916,6 +936,7 @@ setInterval(() => {
 
     let bodyCollisionEvent = false;
     if (dist < minDist && dist > 0) {
+      room.gameState.lastCombatFrame = room.gameState.frame;
       const lastCol = room.gameState.lastCollisionFrame || -100;
       if (room.gameState.frame - lastCol >= 10) {
         room.gameState.lastCollisionFrame = room.gameState.frame;

@@ -1192,6 +1192,7 @@
     let damageTexts = [];
     let hitStopFrames = 0;
     let screenShake = 0;
+    let lastCombatFrame = 0;
     let lastTime = 0;
     let accumulator = 0;
     const TIME_STEP = 1000 / 60;
@@ -1250,6 +1251,13 @@
       }
     }
 
+    function resetLocalBattlePositions() {
+      const p1 = getMainBall('p1'), p2 = getMainBall('p2');
+      if (!p1 || !p2) return;
+      p1.x = 175; p1.y = 575; p1.vx = p1.baseSpeed * 10 / 12.2; p1.vy = p1.baseSpeed * -7 / 12.2;
+      p2.x = 575; p2.y = 175; p2.vx = p2.baseSpeed * -10 / 12.2; p2.vy = p2.baseSpeed * 7 / 12.2;
+    }
+
     const magmaTexture = new Image();
     magmaTexture.src = "magma.png";
     let magmaPattern = null;
@@ -1281,6 +1289,7 @@
     function applyDamage(attackerBall, defenderBall, damage, customEnergyGain = null, hitType = null) {
       try {
         if (!attackerBall || !defenderBall || damage <= 0) return 0;
+        lastCombatFrame = gameFrame;
         const attackerOwner = getStatOwner(attackerBall);
         const defenderOwner = getStatOwner(defenderBall);
 
@@ -1397,6 +1406,7 @@
 
         const collided = resolveBallCollision(a, b);
         if (!collided) return;
+        if (!a.isClone && !b.isClone) lastCombatFrame = gameFrame;
         if (!(a.canCollideWith(b) && b.canCollideWith(a))) return;
 
         let damageFromA = a.isClone ? 5 : (a.roleId === 'magma' ? 35 + Math.min(5, b.magmaStacks || 0) * 5 : (a.roleId === 'clone' ? 0 : BODY_DAMAGE));
@@ -2115,6 +2125,11 @@
       if (gameOver) return;
       gameFrame++;
 
+      if (!ONLINE_MODE && gameFrame - lastCombatFrame >= 300) {
+        resetLocalBattlePositions();
+        lastCombatFrame = gameFrame;
+      }
+
       if (timeStopState.active) {
         updateTimeStopDomain();
         for (let p of projectiles) p.update();
@@ -2398,6 +2413,7 @@
       gameOver = false; // 這是關鍵！如果沒重置，遊戲迴圈會卡死
       pauseOverlay?.classList.remove('is-visible');
       gameFrame = 0;
+      lastCombatFrame = 0;
       battleStats = createStats();
 
       // 🟢 3. 隱藏結算畫面與頂部大廳列
