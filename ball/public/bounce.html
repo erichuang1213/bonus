@@ -1125,7 +1125,7 @@
     const BODY_DAMAGE = 50, CLONE_BODY_DAMAGE = 10, MISSILE_DAMAGE = 25, BIG_MISSILE_DAMAGE = 500, CLONE_HP = 50, CLONE_ENERGY_RETURN = 5, MAX_ENERGY = 100, ENERGY_PER_HIT = 10;
     const MISSILE_COOLDOWN = 120, BIG_MISSILE_COOLDOWN = 480, MISSILE_SPEED = 8, CLONE_MISSILE_SPEED = MISSILE_SPEED * 2, BOUNCE_ANGLE_VAR = 10;
     const CLONE_MIN_COUNT = 3, CLONE_MAX_COUNT = 10, CLONE_TRIGGER_COUNT = 5, CLONE_RADIUS_SCALE = 0.72, CLONE_SPEED_SCALE = 0.95, COLLISION_COOLDOWN_FRAMES = 10;
-    const SWORD_DAMAGE = 20, SWORD_COOLDOWN = 90, FRENZY_MAX_STACKS = 5, FRENZY_STEAL_SPEED = 1, FRENZY_ULTIMATE_DURATION = 180, FRENZY_DAMAGE_REDUCE_PER_STACK = 0.03, FRENZY_ULTIMATE_DAMAGE_REDUCE = 0.40, FRENZY_ULTIMATE_SPEED = 50, SWORD_RANGE = 180, SWORD_ARC = Math.PI * 2 / 3;
+    const SWORD_DAMAGE = 20, SWORD_COOLDOWN = 90, FRENZY_MAX_STACKS = 5, FRENZY_STEAL_SPEED = 1, FRENZY_ULTIMATE_DURATION = 120, FRENZY_DAMAGE_REDUCE_PER_STACK = 0.03, FRENZY_ULTIMATE_DAMAGE_REDUCE = 0.25, FRENZY_ULTIMATE_SPEED = 28, SWORD_RANGE = 180, SWORD_ARC = Math.PI * 2 / 3;
     const OPENING_APPROACH_FRAMES = 48, OPENING_IMPACT_FRAMES = 120, OPENING_COUNTDOWN_FRAMES = 240, TIME_STOP_TOTAL_FRAMES = 96, TIME_STOP_ERASE_FRAME = 34, TIME_STOP_MISSILE_FRAME = 62;
     const LOW_POWER_RENDERING = window.matchMedia('(max-width: 768px)').matches || (navigator.hardwareConcurrency || 8) <= 4;
     const UI_UPDATE_INTERVAL = LOW_POWER_RENDERING ? 12 : 6;
@@ -1303,7 +1303,10 @@
           // 狂暴本體的被動：每次承受有效傷害回 5 能量，並反射 2% 給攻擊者。
           if (!defenderBall.isClone && defenderOwner?.roleId === 'frenzy' && defenderBall.hp > 0 && attackerOwner && attackerOwner !== defenderOwner) {
             const reflectDamage = damage * 0.02;
-            defenderOwner.addEnergy(5);
+            if (gameFrame >= (defenderOwner.frenzyEnergyUntil || 0)) {
+              defenderOwner.frenzyEnergyUntil = gameFrame + 30;
+              defenderOwner.addEnergy(3);
+            }
             attackerOwner.hp = Math.max(0, attackerOwner.hp - reflectDamage);
             addDamageStats(defenderOwner.playerTag, attackerOwner.playerTag, reflectDamage);
             damageTexts.push({
@@ -2181,6 +2184,11 @@
             if (d < target.radius + 35 && target.burnCooldown <= 0) {
               target.magmaStacks = Math.min(5, (target.magmaStacks || 0) + 1);
               target.magmaStacksUntil = gameFrame + 240;
+              const currentSpeed = Math.hypot(target.vx, target.vy) || 1;
+              const baseSpeed = target.roleId === 'frenzy' && target.ultimateTimer > 0 ? FRENZY_ULTIMATE_SPEED : target.baseSpeed;
+              const slowedSpeed = baseSpeed * (1 - target.magmaStacks * 0.06);
+              target.vx = target.vx / currentSpeed * slowedSpeed;
+              target.vy = target.vy / currentSpeed * slowedSpeed;
               applyDamage(ownerBall, target, getCombinedDamageAfterReduction(12 + (target.magmaStacks - 1) * 2, target), 1, 'magma');
               target.burnCooldown = 30;
             }

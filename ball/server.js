@@ -29,16 +29,18 @@ const MAGMA_BODY_DAMAGE = 35;
 const MAGMA_STACK_BONUS_DAMAGE = 5;
 const MAGMA_MAX_STACKS = 5;
 const MAGMA_STACK_DURATION = 240;
+const MAGMA_SLOW_PER_STACK = 0.06;
 const ARENA_DAMAGE = 12;
 const ARENA_DAMAGE_INTERVAL = 30;
 const BLACK_HOLE_DAMAGE = 25;
 const BLACK_HOLE_DAMAGE_INTERVAL = 15;
 const EFFECTS_BROADCAST_INTERVAL = 3;
 const FRENZY_REFLECT_RATIO = 0.02;
-const FRENZY_HIT_ENERGY = 5;
-const FRENZY_ULTIMATE_DURATION = 180;
-const FRENZY_ULTIMATE_SPEED = 50;
-const FRENZY_ULTIMATE_DAMAGE_REDUCE = 0.40;
+const FRENZY_HIT_ENERGY = 3;
+const FRENZY_HIT_ENERGY_COOLDOWN = 30;
+const FRENZY_ULTIMATE_DURATION = 120;
+const FRENZY_ULTIMATE_SPEED = 28;
+const FRENZY_ULTIMATE_DAMAGE_REDUCE = 0.25;
 const MAGMA_MAX_HP = 2400;
 const MAGMA_BASE_SPEED = 9.2;
 const ALLOWED_ROLES = new Set(["speeder", "tank", "frenzy", "magma", "nova", "clone"]);
@@ -275,7 +277,10 @@ function applyServerDamage(roomId, targetId, attackerId, damage, energyGain = 0)
   // 狂暴的常駐被動：活著承受一次有效傷害時，回能並反射該次傷害的 2%。
   // 直接結算反傷，避免兩名狂暴互相反射造成遞迴傷害。
   if (targetBall.role === "frenzy" && targetBall.hp > 0 && room.phase === "battle") {
-    addServerEnergy(roomId, targetId, FRENZY_HIT_ENERGY);
+    if (room.gameState.frame >= (targetBall.frenzyEnergyUntil || 0)) {
+      targetBall.frenzyEnergyUntil = room.gameState.frame + FRENZY_HIT_ENERGY_COOLDOWN;
+      addServerEnergy(roomId, targetId, FRENZY_HIT_ENERGY);
+    }
     const reflectDamage = appliedDamage * FRENZY_REFLECT_RATIO;
     attackerBall.hp = Math.max(0, attackerBall.hp - reflectDamage);
     room.gameState.stats[attackerId].totalDamageTaken += reflectDamage;
@@ -384,6 +389,17 @@ function updateServerEffects(roomId, room) {
     applyServerDamage(roomId, target.id, pool.ownerTag, burnDamage, 1);
   }
 
+  for (const target of balls) {
+    const stacks = Math.min(MAGMA_MAX_STACKS, target.magmaStacks || 0);
+    if (!stacks && !target.magmaSlowApplied) continue;
+    const currentSpeed = Math.hypot(target.vx, target.vy) || 1;
+    const baseSpeed = target.frenzyUltimateTimer > 0 ? FRENZY_ULTIMATE_SPEED : (target.baseSpeed || 12.2);
+    const desiredSpeed = baseSpeed * (1 - stacks * MAGMA_SLOW_PER_STACK);
+    target.vx = (target.vx / currentSpeed) * desiredSpeed;
+    target.vy = (target.vy / currentSpeed) * desiredSpeed;
+    target.magmaSlowApplied = stacks > 0;
+  }
+
   const arena = state.colosseum;
   if (arena?.active) {
     arena.timer--;
@@ -413,6 +429,7 @@ function updateServerEffects(roomId, room) {
     else if (state.frame >= arena.nextDamageFrame) {
       const target = balls.find((ball) => ball.id !== arena.ownerTag);
       if (target && Math.hypot(target.x - arena.x, target.y - arena.y) < arena.radius) {
+        if (target.magmaStacks > 0) target.magmaStacksUntil = state.frame + 1;
         applyServerDamage(roomId, target.id, arena.ownerTag, ARENA_DAMAGE, 1);
       }
       arena.nextDamageFrame = state.frame + ARENA_DAMAGE_INTERVAL;
