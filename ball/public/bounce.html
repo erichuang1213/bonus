@@ -999,8 +999,8 @@
     <div class="info">
       命中對方（碰撞或飛彈）累積能量 💥<br>
       開場先播放對撞動畫：左下 vs 右上，相撞後全畫面白色斜槓與火焰特效，接著 3、2、1、Game Start 🔥<br>
-      主球半徑固定為 70，所有角色血量統一為 2000 ⚡<br>
-      「狂暴」劍氣半徑 100，滿能量回血為已損失血量 2%，暴走減傷 40%，暴走速度為 50 + 層數加成，持續 3 秒 🗡️<br>
+      主球半徑固定為 100，角色依定位有不同血量 ⚡<br>
+      「狂暴」暴走期間每次主球碰撞回復已損生命 30%，速度 28、減傷 25%，持續 2 秒 🗡️<br>
       「影分身」本體每 2 秒自動發射半徑 30 的普通飛彈，傷害 25 🚀<br>
       滿能量時只會召喚 3~10 個影分身；只有當場上分身數量大於等於 5，且消耗分身時仍然足夠 5 個，才會啟動「時間靜止領域」並發射大型飛彈 👥<br>
       <span style="color:#ff6b6b">⚠️ 分身只有 1 次碰撞機會，單次碰撞造成 5 點傷害後消失，並回收 5 點能量</span>
@@ -1028,7 +1028,7 @@
       dawn: { name: '☀ 守曦者・無晝', desc: '承傷蓄積餘燼，護盾迎擊，黎明反攻', icon: '☀', image: '', defaultImage: '/assets/heroes/dawn.webp', ballStyle: { borderColor: '#e8c67c', borderWidth: 2, innerGradient: ['#f0d399', '#15263c'] }, cardStyle: { borderColor: '#e8c67c', glowColor: 'rgba(232,198,124,.4)', nameColor: '#e8c67c' } },
       speeder: { name: '⚡ 疾風球', desc: '速度極快，血量統一 2000', icon: '⚡', image: '', defaultImage: '/assets/heroes/speeder.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6b81', '#ff4757'] }, cardStyle: { borderColor: '#62e6ff', glowColor: 'rgba(98, 230, 255, 0.4)', nameColor: '#62e6ff' } },
       tank: { name: '🛡️ 鐵壁球', desc: '血厚防高，血量統一 2000', icon: '🛡️', image: '', defaultImage: '/assets/heroes/tank.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 3, innerGradient: ['#7bed9f', '#2ed573'] }, cardStyle: { borderColor: '#38e77c', glowColor: 'rgba(56, 231, 124, 0.4)', nameColor: '#38e77c' } },
-      frenzy: { name: '🗡️ 狂暴', desc: '常駐反傷 2%，受擊回復 5 能量', icon: '🗡️', image: '', defaultImage: '/assets/heroes/frenzy.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6666', '#ff3333'] }, cardStyle: { borderColor: '#ff4040', glowColor: 'rgba(255, 64, 64, 0.4)', nameColor: '#ff6262' } },
+      frenzy: { name: '🗡️ 狂暴', desc: '反傷 2%，受擊回能；暴走碰撞回血', icon: '🗡️', image: '', defaultImage: '/assets/heroes/frenzy.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6666', '#ff3333'] }, cardStyle: { borderColor: '#ff4040', glowColor: 'rgba(255, 64, 64, 0.4)', nameColor: '#ff6262' } },
       magma: { name: '🌋 熔岩巨獸', desc: '鋪設岩漿、灼燒爆發與火山封鎖', icon: '🌋', image: '', defaultImage: '/assets/heroes/magma.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9f43', '#ee5253'] }, cardStyle: { borderColor: '#ff813d', glowColor: 'rgba(255, 129, 61, 0.4)', nameColor: '#ff9b4a' } },
       nova: { name: '🃏 鬼牌小丑', desc: '落牌設局，扭轉對手走位', icon: '🃏', image: '', defaultImage: '/assets/heroes/nova.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#facc15', '#a855f7'] }, cardStyle: { borderColor: '#c084fc', glowColor: 'rgba(192, 132, 252, 0.45)', nameColor: '#d8b4fe' } },
       clone: { name: '👥 影分身', desc: '只有此角色擁有大型飛彈與時間靜止領域', icon: '👥', image: '', defaultImage: '/assets/heroes/clone.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9ff3', '#ff6b9d'] }, cardStyle: { borderColor: '#7775ff', glowColor: 'rgba(119, 117, 255, 0.4)', nameColor: '#a5a6ff' } }
@@ -1427,6 +1427,16 @@
 
         if (damageFromA > 0) applyDamage(a, b, damageFromA, null, a.isClone ? 'clone' : null);
         if (damageFromB > 0) applyDamage(b, a, damageFromB, null, b.isClone ? 'clone' : null);
+
+        // 線上碰撞由伺服器判定；本地模式在相同的主球有效碰撞點套用暴走回血。
+        if (!ONLINE_MODE) {
+          [a, b].forEach((ball) => {
+            if (!ball.isClone && ball.roleId === 'frenzy' && ball.isUltimateActive === true && ball.hp > 0) {
+              const lostHp = Math.max(0, ball.maxHp - ball.hp);
+              healBall(ball, lostHp * 0.30);
+            }
+          });
+        }
 
         if (a.isClone && !b.isClone) a.hp = 0;
         if (b.isClone && !a.isClone) b.hp = 0;
@@ -1940,13 +1950,7 @@
         targetBall.vx = Math.cos(targetDir) * targetBall.baseSpeed;
         targetBall.vy = Math.sin(targetDir) * targetBall.baseSpeed;
       }
-      if (ball.isUltimateActive === true) {
-        // 線上回血由伺服器在確認劍砍命中後結算；本地模式在這裡保留相同規則。
-        if (!ONLINE_MODE) {
-          const lostHp = Math.max(0, ball.maxHp - ball.hp);
-          healBall(ball, (lostHp * 0.05) + 15);
-        }
-      } else {
+      if (ball.isUltimateActive !== true) {
         applyFrenzyNormalSpeed(ball);
       }
       ball.damageReduction = ball.frenzyStacks * FRENZY_DAMAGE_REDUCE_PER_STACK;

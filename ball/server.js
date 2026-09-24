@@ -52,9 +52,8 @@ const FRENZY_HIT_ENERGY_COOLDOWN = 30;
 const FRENZY_ULTIMATE_DURATION = 120;
 const FRENZY_ULTIMATE_SPEED = 28;
 const FRENZY_ULTIMATE_DAMAGE_REDUCE = 0.25;
-// 暴走不是常駐回血；必須由伺服器確認劍砍命中後才結算，避免線上前端不同步。
-const FRENZY_ULTIMATE_HEAL_LOST_HP_RATIO = 0.05;
-const FRENZY_ULTIMATE_HEAL_FLAT = 15;
+// 暴走續航只由有效的主球碰撞觸發；由伺服器結算，避免線上前端不同步。
+const FRENZY_ULTIMATE_HEAL_LOST_HP_RATIO = 0.30;
 const MAGMA_MAX_HP = 2400;
 const MAGMA_BASE_SPEED = 9.2;
 const ALLOWED_ROLES = new Set(["speeder", "tank", "frenzy", "magma", "nova", "clone", "dawn"]);
@@ -338,6 +337,15 @@ function healServerBall(roomId, ballId, amount) {
     room.gameState.stats[ballId].totalHealing += applied;
   }
   return applied;
+}
+
+function healFrenzyUltimateOnBodyCollision(roomId, ballId) {
+  const room = rooms.get(roomId);
+  if (!room || room.phase !== "battle" || !room.gameState) return 0;
+  const ball = room.gameState.balls.find((candidate) => candidate.id === ballId);
+  if (!ball || ball.role !== "frenzy" || ball.hp <= 0 || ball.frenzyUltimateTimer <= 0) return 0;
+  const lostHp = Math.max(0, ball.maxHp - ball.hp);
+  return healServerBall(roomId, ballId, lostHp * FRENZY_ULTIMATE_HEAL_LOST_HP_RATIO);
 }
 
 function finishBattle(roomId, winnerId, loserId) {
@@ -804,14 +812,6 @@ io.on("connection", (socket) => {
       const rule = validateReportedHit(room, attackerId, targetId, damage, hitType);
       if (!rule) return;
       applyServerDamage(roomId, targetId, attackerId, damage, rule.energy);
-
-      // 狂暴的暴走續航：只在有效劍砍命中、且雙方仍在戰鬥時恢復生命。
-      // 這一段不能留給前端自行送 healHp，否則線上模式會漏判或被偽造。
-      const attacker = room.gameState.balls.find((ball) => ball.id === attackerId);
-      if (room.phase === "battle" && hitType === "sword" && attacker?.role === "frenzy" && attacker.frenzyUltimateTimer > 0) {
-        const lostHp = Math.max(0, attacker.maxHp - attacker.hp);
-        healServerBall(roomId, attackerId, (lostHp * FRENZY_ULTIMATE_HEAL_LOST_HP_RATIO) + FRENZY_ULTIMATE_HEAL_FLAT);
-      }
     },
   );
 
@@ -1003,6 +1003,9 @@ setInterval(() => {
         // 碰撞回能與傷害分開：影分身本體雖然不造成碰撞傷害，仍應獲得碰撞能量。
         applyServerDamage(roomId, "p2", "p1", getBodyDamage(b1, b2));
         applyServerDamage(roomId, "p1", "p2", getBodyDamage(b2, b1));
+        // 狂暴暴走的回血只認主球有效碰撞，不認劍砍、飛彈或其他傷害來源。
+        healFrenzyUltimateOnBodyCollision(roomId, "p1");
+        healFrenzyUltimateOnBodyCollision(roomId, "p2");
         // 鬼牌小丑的被動：一組蓋牌只藏一張真牌；同撞瞬間不會偷吃傷害。
         if (b1.role === "nova") spawnJokerHand(room.gameState, b1, b2);
         if (b2.role === "nova") spawnJokerHand(room.gameState, b2, b1);
