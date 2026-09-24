@@ -52,6 +52,9 @@ const FRENZY_HIT_ENERGY_COOLDOWN = 30;
 const FRENZY_ULTIMATE_DURATION = 120;
 const FRENZY_ULTIMATE_SPEED = 28;
 const FRENZY_ULTIMATE_DAMAGE_REDUCE = 0.25;
+// 暴走不是常駐回血；必須由伺服器確認劍砍命中後才結算，避免線上前端不同步。
+const FRENZY_ULTIMATE_HEAL_LOST_HP_RATIO = 0.05;
+const FRENZY_ULTIMATE_HEAL_FLAT = 15;
 const MAGMA_MAX_HP = 2400;
 const MAGMA_BASE_SPEED = 9.2;
 const ALLOWED_ROLES = new Set(["speeder", "tank", "frenzy", "magma", "nova", "clone", "dawn"]);
@@ -320,6 +323,21 @@ function applyServerDamage(roomId, targetId, attackerId, damage, energyGain = 0)
       return;
     }
   }
+}
+
+function healServerBall(roomId, ballId, amount) {
+  const room = rooms.get(roomId);
+  if (!room || room.phase !== "battle" || !room.gameState) return 0;
+  const ball = room.gameState.balls.find((candidate) => candidate.id === ballId);
+  if (!ball) return 0;
+  const safeAmount = Math.max(0, Math.min(150, Number(amount) || 0));
+  const before = ball.hp;
+  ball.hp = Math.min(ball.maxHp, ball.hp + safeAmount);
+  const applied = ball.hp - before;
+  if (applied > 0 && room.gameState.stats[ballId]) {
+    room.gameState.stats[ballId].totalHealing += applied;
+  }
+  return applied;
 }
 
 function finishBattle(roomId, winnerId, loserId) {
@@ -786,6 +804,14 @@ io.on("connection", (socket) => {
       const rule = validateReportedHit(room, attackerId, targetId, damage, hitType);
       if (!rule) return;
       applyServerDamage(roomId, targetId, attackerId, damage, rule.energy);
+
+      // 狂暴的暴走續航：只在有效劍砍命中、且雙方仍在戰鬥時恢復生命。
+      // 這一段不能留給前端自行送 healHp，否則線上模式會漏判或被偽造。
+      const attacker = room.gameState.balls.find((ball) => ball.id === attackerId);
+      if (room.phase === "battle" && hitType === "sword" && attacker?.role === "frenzy" && attacker.frenzyUltimateTimer > 0) {
+        const lostHp = Math.max(0, attacker.maxHp - attacker.hp);
+        healServerBall(roomId, attackerId, (lostHp * FRENZY_ULTIMATE_HEAL_LOST_HP_RATIO) + FRENZY_ULTIMATE_HEAL_FLAT);
+      }
     },
   );
 
@@ -805,13 +831,7 @@ io.on("connection", (socket) => {
     const me = getOwnedPlayer(room, socket, playerKey);
     if (!me || targetId !== me.side || !Number.isFinite(amount)) return;
     if (!consumeRateLimit(room, `${me.side}:heal`, 1, 90)) return;
-    const targetBall = room.gameState.balls.find((b) => b.id === targetId);
-    if (targetBall) {
-      const safeAmount = Math.max(0, Math.min(150, amount));
-      targetBall.hp = Math.min(targetBall.maxHp, targetBall.hp + safeAmount);
-      if (room.gameState.stats[targetId])
-        room.gameState.stats[targetId].totalHealing += safeAmount;
-    }
+    healServerBall(roomId, targetId, amount);
   });
 
   socket.on("disconnect", () => {

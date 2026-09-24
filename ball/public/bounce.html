@@ -1941,8 +1941,11 @@
         targetBall.vy = Math.sin(targetDir) * targetBall.baseSpeed;
       }
       if (ball.isUltimateActive === true) {
-        const lostHp = Math.max(0, ball.maxHp - ball.hp);
-        healBall(ball, (lostHp * 0.05) + 15);
+        // 線上回血由伺服器在確認劍砍命中後結算；本地模式在這裡保留相同規則。
+        if (!ONLINE_MODE) {
+          const lostHp = Math.max(0, ball.maxHp - ball.hp);
+          healBall(ball, (lostHp * 0.05) + 15);
+        }
       } else {
         applyFrenzyNormalSpeed(ball);
       }
