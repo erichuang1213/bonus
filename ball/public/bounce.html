@@ -1316,7 +1316,7 @@
           if (attackerOwner && defenderOwner && eGain > 0) attackerOwner.addEnergy(eGain);
           addDamageStats(attackerOwner?.playerTag, defenderOwner?.playerTag, damage);
 
-          // 狂暴本體的被動：每次承受有效傷害回 5 能量，並反射 2% 給攻擊者。
+          // 狂暴本體的被動：每次承受有效傷害最多每 0.5 秒回 3 能量，並反射 2% 給攻擊者。
           if (!defenderBall.isClone && defenderOwner?.roleId === 'frenzy' && defenderBall.hp > 0 && attackerOwner && attackerOwner !== defenderOwner) {
             const reflectDamage = attackerOwner.roleId === 'dawn' ? Dawn.damage(attackerOwner, damage * .02, true) : damage * .02;
             if (gameFrame >= (defenderOwner.frenzyEnergyUntil || 0)) {
@@ -1537,11 +1537,6 @@
       drawAt(x = this.x, y = this.y, scale = 1, alphaOverride = null) {
         const style = this.visual.ballStyle; const alpha = alphaOverride !== null ? alphaOverride : (this.isClone ? 0.65 : 1); const img = this.ballImageObj; const hasImage = img && isImageReady(img); const drawRadius = this.radius * scale;
         ctx.save(); ctx.globalAlpha = alpha;
-        if (this.roleId === 'dawn') {
-          ctx.strokeStyle = this.dawnUlt > 0 ? '#fff0ab' : '#e8c67c'; ctx.lineWidth = this.dawnShield > 0 ? 5 : 2;
-          if (this.dawnShield > 0 || this.dawnUlt > 0) { ctx.beginPath(); ctx.arc(x, y, drawRadius + 4, 0, Math.PI * 2); ctx.stroke(); }
-          for (let i = 0; i < Math.floor((this.dawnEmber || 0) / 40); i++) { ctx.beginPath(); ctx.arc(x, y, drawRadius - 8, -Math.PI / 2 + i * .55, -Math.PI / 2 + i * .55 + .35); ctx.stroke(); }
-        }
         if (hasImage) {
           ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(img, x - drawRadius, y - drawRadius, drawRadius * 2, drawRadius * 2); ctx.closePath();
           ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); ctx.strokeStyle = this.heavyInjury ? '#ff0000' : style.borderColor; ctx.lineWidth = this.isClone ? style.borderWidth * 0.75 : style.borderWidth; ctx.stroke(); ctx.closePath();
@@ -1550,6 +1545,7 @@
           drawRoleDecoration(this, x, y, drawRadius);
           ctx.beginPath(); ctx.arc(x - drawRadius * 0.25, y - drawRadius * 0.25, drawRadius * 0.25, 0, Math.PI * 2); ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.25})`; ctx.fill(); ctx.closePath();
         }
+        if (this.roleId === 'dawn' && !this.isClone) drawDawnStateVisual(this, x, y, drawRadius);
         ctx.restore();
       }
       draw() {
@@ -1569,6 +1565,72 @@
 
     function setBallSpeedByCurrentDirection(ball, speed) {
       const dir = Math.atan2(ball.vy, ball.vx); ball.baseSpeed = speed; ball.vx = Math.cos(dir) * speed; ball.vy = Math.sin(dir) * speed;
+    }
+
+    // 餘燼是三段式資源：每 40 點點亮一道環。視覺與面板都使用這個單一來源，避免數字和效果互相矛盾。
+    function getDawnEmberState(emberValue) {
+      const ember = Math.max(0, Math.min(120, Number(emberValue) || 0));
+      const completedRings = Math.min(3, Math.floor(ember / 40));
+      const activeRing = completedRings < 3 ? completedRings : -1;
+      const activeProgress = activeRing >= 0 ? (ember - activeRing * 40) / 40 : 1;
+      return { ember, completedRings, activeRing, activeProgress };
+    }
+
+    function drawDawnStateVisual(ball, x, y, radius) {
+      const state = getDawnEmberState(ball.dawnEmber);
+      const pulse = 0.72 + Math.sin(gameFrame * 0.11) * 0.18;
+      const segmentColors = ['#ef8c47', '#f5bd58', '#fff0a3'];
+      const ringRadius = radius + 12;
+
+      // 護盾永遠以冷色外環呈現，餘燼則固定使用暖色三段環，兩種狀態不會混淆。
+      if ((ball.dawnShield || 0) > 0 || ball.dawnUlt > 0) {
+        ctx.save();
+        ctx.setLineDash([8, 6]);
+        ctx.lineDashOffset = -gameFrame * 0.45;
+        ctx.strokeStyle = ball.dawnUlt > 0 ? `rgba(255, 242, 170, ${pulse})` : 'rgba(133, 211, 255, .82)';
+        ctx.lineWidth = ball.dawnUlt > 0 ? 4 : 3;
+        ctx.beginPath(); ctx.arc(x, y, ringRadius + 9, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
+
+      // 三道環各自代表 40 點餘燼；空環是輪廓，蓄能時只填充自己的進度。
+      for (let i = 0; i < 3; i++) {
+        const start = -Math.PI / 2 + i * (Math.PI * 2 / 3) + 0.08;
+        const end = start + Math.PI * 2 / 3 - 0.16;
+        const progress = i < state.completedRings ? 1 : (i === state.activeRing ? state.activeProgress : 0);
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 218, 149, .22)'; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.arc(x, y, ringRadius, start, end); ctx.stroke();
+        if (progress > 0) {
+          const filledEnd = start + (end - start) * progress;
+          ctx.strokeStyle = segmentColors[i]; ctx.lineWidth = 5;
+          ctx.shadowBlur = diagnosticEffectsDisabled ? 0 : 10; ctx.shadowColor = segmentColors[i];
+          ctx.beginPath(); ctx.arc(x, y, ringRadius, start, filledEnd); ctx.stroke();
+          // 每個已點亮環在末端留下一枚小火點，讓一層、兩層、三層能被立即辨認。
+          const fx = x + Math.cos(filledEnd) * ringRadius, fy = y + Math.sin(filledEnd) * ringRadius;
+          ctx.beginPath(); ctx.arc(fx, fy, 3 + progress * 2, 0, Math.PI * 2); ctx.fillStyle = segmentColors[i]; ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      if (state.completedRings === 3 && !diagnosticEffectsDisabled) {
+        ctx.save(); ctx.strokeStyle = `rgba(255, 237, 155, ${pulse * .72})`; ctx.lineWidth = 2;
+        for (let i = 0; i < 10; i++) {
+          const angle = gameFrame * 0.018 + i * Math.PI * 2 / 10;
+          const inner = ringRadius + 15, outer = inner + 8 + pulse * 5;
+          ctx.beginPath(); ctx.moveTo(x + Math.cos(angle) * inner, y + Math.sin(angle) * inner); ctx.lineTo(x + Math.cos(angle) * outer, y + Math.sin(angle) * outer); ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      if (state.ember > 0 || (ball.dawnShield || 0) > 0 || ball.dawnUlt > 0) {
+        const label = ball.dawnUlt > 0 ? `黎明 ${Math.ceil(ball.dawnUlt / 60)}s` : `餘燼 ${state.completedRings}/3`;
+        ctx.save(); ctx.font = 'bold 13px Microsoft JhengHei, sans-serif'; ctx.textAlign = 'center';
+        const width = ctx.measureText(label).width + 16;
+        ctx.fillStyle = 'rgba(7, 16, 34, .72)'; ctx.fillRect(x - width / 2, y - radius - 30, width, 19);
+        ctx.fillStyle = ball.dawnUlt > 0 ? '#fff0a3' : '#ffd387'; ctx.fillText(label, x, y - radius - 16);
+        ctx.restore();
+      }
     }
 
     function drawRoleDecoration(ball, x, y, r) {
@@ -1621,11 +1683,21 @@
       if (mainBall.roleId === 'nova') return `碰撞 30 / 真牌 30`;
       return `碰撞 ${BODY_DAMAGE}`;
     }
+    function getDawnStatusText(mainBall) {
+      const state = getDawnEmberState(mainBall?.dawnEmber);
+      const shield = Math.ceil(mainBall?.dawnShield || 0);
+      const nextRing = state.completedRings < 3 ? Math.ceil(40 - state.activeProgress * 40) : 0;
+      const emberText = state.completedRings === 3
+        ? '滿餘燼 3/3'
+        : `餘燼環 ${state.completedRings}/3${state.ember > 0 ? `（下一環 ${nextRing}）` : '（蓄積中）'}`;
+      if (mainBall?.dawnUlt > 0) return `${emberText} · 黎明必至 ${(mainBall.dawnUlt / 60).toFixed(1)} 秒 · 護盾 ${shield}`;
+      return `${emberText} · 護盾 ${shield}${shield > 0 ? '（生效中）' : '（每 5 秒刷新）'}`;
+    }
     function getRoleNote(mainBall) {
-      if (mainBall?.roleId === 'dawn') return `餘燼 ${Math.floor(mainBall.dawnEmber || 0)}/120 · 護盾 ${Math.ceil(mainBall.dawnShield || 0)} · ${mainBall.dawnUlt > 0 ? '黎明必至 ' + (mainBall.dawnUlt / 60).toFixed(1) + ' 秒' : '每 5 秒迎擊之盾'}`;
+      if (mainBall?.roleId === 'dawn') return getDawnStatusText(mainBall);
       if (!mainBall) return '尚未選定角色';
       if (mainBall.roleId === 'clone') return `分身達到 ${CLONE_TRIGGER_COUNT} 個且大招冷卻完成時，觸發時間靜止領域。`;
-      if (mainBall.roleId === 'frenzy') return `被動：反傷 2%，每次受擊 +5 能量。偷速層數 ${mainBall.frenzyStacks || 0} / ${FRENZY_MAX_STACKS}；層數減傷 ${Math.round((mainBall.damageReduction || 0) * 100)}%${mainBall.ultimateTimer > 0 ? `，暴走減傷 40%` : ''}。`;
+      if (mainBall.roleId === 'frenzy') return `被動：反傷 2%，每 0.5 秒最多受擊回能 +3。偷速層數 ${mainBall.frenzyStacks || 0} / ${FRENZY_MAX_STACKS}；層數減傷 ${Math.round((mainBall.damageReduction || 0) * 100)}%${mainBall.ultimateTimer > 0 ? `，暴走減傷 25%` : ''}。`;
       if (mainBall.roleId === 'magma') return `走過留下岩漿(3.5秒)疊加灼燒；碰撞消耗 2 層造成爆發。大招展開火山封鎖。`;
       if (mainBall.roleId === 'nova') return `被動：碰撞洗出 3 張蓋牌，僅 1 張是真牌。真牌會轉向或交換位置；大招鬼牌秀洗出 5 張牌與殘影。`;
       return mainBall.visual.desc;
@@ -1683,7 +1755,7 @@
         const redHp = Math.max(0, Math.round(mainRed.hp)); hpRedBar.style.width = (redHp / mainRed.maxHp * 100) + '%'; hpRedText.textContent = `${redHp} / ${mainRed.maxHp}`;
         const redEn = Math.max(0, mainRed.energy); energyRedBar.style.width = (redEn / MAX_ENERGY * 100) + '%'; energyRedBar.classList.toggle('full', redEn >= MAX_ENERGY);
         let redHtml = `🔴 ${escapeHtml(p1Name)} (${mainRed.visual.name})`;
-        if (mainRed.roleId === 'frenzy') { redHtml += ` <span style="color:#ff6b6b;font-size:10px">[${mainRed.frenzyStacks}/5]</span>`; if (mainRed.ultimateTimer > 0) redHtml += ' <span style="color:#ffd700;font-size:11px">[暴走40%]</span>'; } else if (mainRed.heavyInjury) redHtml += ' <span class="heavy-injury-badge">重傷</span>';
+        if (mainRed.roleId === 'dawn') { const dawn = getDawnEmberState(mainRed.dawnEmber); redHtml += ` <span style="color:#ffd387;font-size:10px">[餘燼 ${dawn.completedRings}/3]</span>`; if (mainRed.dawnShield > 0) redHtml += ` <span style="color:#8bd3ff;font-size:10px">[盾 ${Math.ceil(mainRed.dawnShield)}]</span>`; if (mainRed.dawnUlt > 0) redHtml += ' <span style="color:#fff0a3;font-size:11px">[黎明]</span>'; } else if (mainRed.roleId === 'frenzy') { redHtml += ` <span style="color:#ff6b6b;font-size:10px">[${mainRed.frenzyStacks}/5]</span>`; if (mainRed.ultimateTimer > 0) redHtml += ' <span style="color:#ffd700;font-size:11px">[暴走減傷25%]</span>'; } else if (mainRed.heavyInjury) redHtml += ' <span class="heavy-injury-badge">重傷</span>';
         nameRed.innerHTML = redHtml;
       } else { hpRedBar.style.width = '0%'; hpRedText.textContent = '0 / 0'; energyRedBar.style.width = '0%'; energyRedBar.classList.remove('full'); nameRed.innerHTML = `🔴 ${escapeHtml(p1Name)}`; }
 
@@ -1691,7 +1763,7 @@
         const blueHp = Math.max(0, Math.round(mainBlue.hp)); hpBlueBar.style.width = (blueHp / mainBlue.maxHp * 100) + '%'; hpBlueText.textContent = `${blueHp} / ${mainBlue.maxHp}`;
         const blueEn = Math.max(0, mainBlue.energy); energyBlueBar.style.width = (blueEn / MAX_ENERGY * 100) + '%'; energyBlueBar.classList.toggle('full', blueEn >= MAX_ENERGY);
         let blueHtml = `🔵 ${escapeHtml(p2Name)} (${mainBlue.visual.name})`;
-        if (mainBlue.roleId === 'frenzy') { blueHtml += ` <span style="color:#ff6b6b;font-size:10px">[${mainBlue.frenzyStacks}/5]</span>`; if (mainBlue.ultimateTimer > 0) blueHtml += ' <span style="color:#ffd700;font-size:11px">[暴走40%]</span>'; } else if (mainBlue.heavyInjury) blueHtml += ' <span class="heavy-injury-badge">重傷</span>';
+        if (mainBlue.roleId === 'dawn') { const dawn = getDawnEmberState(mainBlue.dawnEmber); blueHtml += ` <span style="color:#ffd387;font-size:10px">[餘燼 ${dawn.completedRings}/3]</span>`; if (mainBlue.dawnShield > 0) blueHtml += ` <span style="color:#8bd3ff;font-size:10px">[盾 ${Math.ceil(mainBlue.dawnShield)}]</span>`; if (mainBlue.dawnUlt > 0) blueHtml += ' <span style="color:#fff0a3;font-size:11px">[黎明]</span>'; } else if (mainBlue.roleId === 'frenzy') { blueHtml += ` <span style="color:#ff6b6b;font-size:10px">[${mainBlue.frenzyStacks}/5]</span>`; if (mainBlue.ultimateTimer > 0) blueHtml += ' <span style="color:#ffd700;font-size:11px">[暴走減傷25%]</span>'; } else if (mainBlue.heavyInjury) blueHtml += ' <span class="heavy-injury-badge">重傷</span>';
         nameBlue.innerHTML = blueHtml;
       } else { hpBlueBar.style.width = '0%'; hpBlueText.textContent = '0 / 0'; energyBlueBar.style.width = '0%'; energyBlueBar.classList.remove('full'); nameBlue.innerHTML = `🔵 ${escapeHtml(p2Name)}`; }
 
