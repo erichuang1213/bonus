@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>雙人配對大廳</title>
+  <title>競技大廳｜雙球對戰</title>
   <style>
     * { box-sizing: border-box; }
 
@@ -130,32 +130,145 @@
       font-size: 14px;
       line-height: 1.7;
     }
+
+    body { display: block; background: radial-gradient(circle at 12% 6%, #233253 0, transparent 36%), radial-gradient(circle at 90% 92%, #2a1734 0, transparent 40%), #090f20; }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid #81d8ff; outline-offset: 3px; }
+    .lobby-shell { width: min(1200px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 48px; }
+    .lobby-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding-bottom: 22px; border-bottom: 1px solid #34405a; }
+    .brand-kicker, .eyebrow { color: #65d9ff; font-size: 12px; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; }
+    .brand-title { margin: 6px 0 0; font-size: clamp(26px, 4vw, 40px); letter-spacing: .05em; color: #fff; }
+    .lobby-actions { display: flex; align-items: center; gap: 16px; }
+    .connection { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #a8bed4; white-space: nowrap; }
+    .connection::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #ef6b75; box-shadow: 0 0 12px #ef6b75; }
+    .connection.is-online::before { background: #4ad6a0; box-shadow: 0 0 12px #4ad6a0; }
+    .practice-link { color: #c6d7e9; text-decoration: none; border: 1px solid #425572; border-radius: 10px; padding: 9px 12px; font-size: 13px; white-space: nowrap; }
+    .practice-link:hover { color: #fff; border-color: #78ccef; }
+    .section-intro { margin: 27px 0 20px; }
+    .section-intro h2 { margin: 5px 0; font-size: clamp(23px, 3vw, 32px); color: #fff; }
+    .section-intro p { color: #a8bad0; line-height: 1.6; margin: 0; }
+    .setup-grid { display: grid; grid-template-columns: minmax(0, 1.16fr) minmax(290px, .84fr); gap: 18px; align-items: start; }
+    .card { width: auto; padding: 24px; border-radius: 20px; background: rgba(16, 25, 46, .9); box-shadow: 0 20px 55px #02061088; }
+    .identity-row { display: flex; gap: 14px; align-items: end; margin-bottom: 16px; }
+    .identity-row > div { flex: 1; }
+    .identity-row label { margin-top: 0; }
+    .identity-hint { font-size: 12px; color: #8da0b9; padding-bottom: 13px; white-space: nowrap; }
+    input { outline: none; }
+    .role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-height: 420px; overflow-y: auto; padding: 3px 6px 3px 3px; }
+    .role-option { display: flex; align-items: center; gap: 12px; min-height: 80px; padding: 9px; margin: 0; background: #0c172c; transition: border-color .15s, transform .15s; }
+    .role-option:hover:not(:disabled) { transform: translateY(-2px); }
+    .role-option.is-selected { background: color-mix(in srgb, var(--role-color) 12%, #0c172c); }
+    .role-option img { width: 58px; height: 58px; border-radius: 50%; object-fit: cover; flex: none; background: #152a45; }
+    .role-option strong { color: #fff; font-size: 14px; }
+    .role-option small { font-size: 11px; }
+    .role-option:disabled { cursor: default; opacity: .7; }
+    .primary-action { display: block; min-height: 54px; margin-top: 18px; background: linear-gradient(125deg, #f05b76, #d94165); box-shadow: 0 9px 24px #d9416540; }
+    .primary-action:hover:not(:disabled) { filter: brightness(1.1); }
+    .primary-action:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
+    .secondary-action { background: #273954; border: 1px solid #557090; box-shadow: none; }
+    .role-detail { margin-top: 0; padding: 0; border: 0; background: transparent; }
+    .hero-panel { overflow: hidden; }
+    .hero-art { height: 255px; display: grid; place-items: center; position: relative; overflow: hidden; border-radius: 15px; background: radial-gradient(circle at center, color-mix(in srgb, var(--role-color) 35%, #203057), #0a1325 70%); }
+    .hero-art::before { content: ''; position: absolute; inset: 15px; border: 1px solid color-mix(in srgb, var(--role-color) 65%, transparent); border-radius: 50%; transform: scale(.75); opacity: .55; }
+    .hero-art img { height: 220px; width: 220px; object-fit: contain; position: relative; filter: drop-shadow(0 12px 23px #0008); }
+    .hero-panel .eyebrow { display: block; margin: 18px 0 7px; }
+    .role-detail h2 { font-size: 24px; margin: 0 0 8px; }
+    .role-detail-grid { grid-template-columns: 78px 1fr; font-size: 13px; gap: 7px 12px; }
+    .role-detail-grid dt { color: #91acc7; }
+    .role-detail-grid dd { color: #e5ecf5; }
+    .muted { color: #9bb0c7; font-size: 13px; line-height: 1.6; }
+    .stage[hidden] { display: none !important; }
+    .stage-card { width: min(650px, 100%); margin: 46px auto 0; text-align: center; padding: 34px; }
+    .stage-card h2 { margin: 8px 0; font-size: clamp(25px, 4vw, 34px); color: #fff; }
+    .stage-card p { color: #a8bed4; line-height: 1.6; }
+    .search-orbit { width: 150px; height: 150px; margin: 10px auto 22px; border: 1px solid #3c6280; border-radius: 50%; display: grid; place-items: center; position: relative; box-shadow: 0 0 45px #2995ba33; }
+    .search-orbit::before, .search-orbit::after { content: ''; position: absolute; inset: 13px; border: 2px solid transparent; border-top-color: #6ee4ff; border-radius: 50%; animation: orbit 2.8s linear infinite; }
+    .search-orbit::after { inset: -11px; border-top-color: #ee7290; animation-duration: 4s; animation-direction: reverse; }
+    .search-orbit img { width: 110px; height: 110px; object-fit: contain; border-radius: 50%; }
+    @keyframes orbit { to { transform: rotate(360deg); } }
+    .search-meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 22px 0 6px; }
+    .meta-tile { border: 1px solid #334a67; border-radius: 13px; padding: 13px; background: #0d1b33; }
+    .meta-tile span { display: block; color: #9bb0c7; font-size: 12px; }
+    .meta-tile strong { display: block; margin-top: 5px; color: #fff; font-size: 22px; }
+    .match-pair { display: grid; grid-template-columns: 1fr 62px 1fr; align-items: center; gap: 8px; margin: 24px 0; }
+    .player-slot { border: 1px solid #415875; border-radius: 16px; padding: 16px 8px; background: #0c1930; min-width: 0; }
+    .player-slot img { width: min(100%, 105px); aspect-ratio: 1; object-fit: contain; }
+    .player-slot strong, .player-slot span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .player-slot strong { margin-top: 8px; color: #fff; }
+    .player-slot span { font-size: 12px; color: #a3b7cd; margin-top: 4px; }
+    .versus { color: #f27e95; font-size: 21px; font-weight: 900; font-style: italic; }
+    .ready-status { margin: 13px 0 0; color: #8be8bf !important; min-height: 24px; }
+    #status { margin: 11px 0 0; color: #f8c97d; min-height: 22px; font-size: 13px; }
+    .lobby-footer { color: #6f86a3; font-size: 12px; text-align: center; margin-top: 24px; }
+    @media (max-width: 780px) {
+      .setup-grid { grid-template-columns: 1fr; }
+      .hero-art { height: 180px; }
+      .hero-art img { width: 160px; height: 160px; }
+    }
+    @media (max-width: 520px) {
+      .lobby-shell { width: min(100% - 20px, 1200px); padding-top: 16px; }
+      .lobby-header { align-items: start; }
+      .lobby-actions { flex-direction: column; align-items: end; gap: 9px; }
+      .card { padding: 17px; }
+      .role-grid { grid-template-columns: 1fr; max-height: 300px; }
+      .identity-row { display: block; }
+      .identity-hint { padding: 8px 0 0; }
+      .stage-card { margin-top: 20px; }
+      .match-pair { grid-template-columns: 1fr 30px 1fr; }
+      .player-slot img { width: 76px; }
+    }
+    @media (prefers-reduced-motion: reduce) { .search-orbit::before, .search-orbit::after { animation: none; } .role-option { transition: none; } }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>🎮 雙人配對大廳</h1>
-    <p class="desc">
-      先選擇名字與角色，再開始配對。<br />
-      配對成功後角色會鎖定，直接進入對戰。
-    </p>
+  <main class="lobby-shell">
+    <header class="lobby-header">
+      <div><span class="brand-kicker">BALL ARENA · ONLINE</span><h1 class="brand-title">競技配對大廳</h1></div>
+      <div class="lobby-actions"><span class="connection" id="connectionState">連線中</span><a class="practice-link" href="/bounce.html">單機練習 ↗</a></div>
+    </header>
 
-    <label for="playerName">你的名字</label>
-    <input id="playerName" value="玩家1" />
+    <section class="stage" id="setupStage">
+      <div class="section-intro"><span class="eyebrow">01 / BUILD YOUR MATCH</span><h2>選好你的英雄，再尋找對手</h2><p>配對期間英雄會鎖定；取消搜尋後可以重新選擇。找到對手後，雙方都確認才開戰。</p></div>
+      <div class="setup-grid">
+        <section class="card">
+          <div class="identity-row"><div><label for="playerName">玩家名稱</label><input id="playerName" maxlength="24" autocomplete="nickname" placeholder="輸入你在戰場上的名字" /></div><span class="identity-hint">最多 24 字</span></div>
+          <label id="roleLabel">選擇英雄</label>
+          <div class="role-grid" id="roleGrid" aria-labelledby="roleLabel"></div>
+          <button class="primary-action" id="matchBtn" type="button">開始尋找對手</button>
+          <div id="status" role="status" aria-live="polite">準備好後即可開始配對</div>
+        </section>
+        <aside class="card hero-panel">
+          <div class="hero-art" id="heroArt"><img id="heroImage" alt="" /></div>
+          <span class="eyebrow">HERO PROFILE</span>
+          <section class="role-detail" id="roleDetail" aria-live="polite"></section>
+        </aside>
+      </div>
+    </section>
 
-    <label>選擇角色（配對後鎖定）</label>
-    <div class="role-grid" id="roleGrid" aria-label="角色選擇"></div>
-    <section class="role-detail" id="roleDetail" aria-live="polite"></section>
+    <section class="stage" id="searchStage" hidden>
+      <div class="card stage-card">
+        <span class="eyebrow">02 / SEARCHING</span><h2>正在尋找對手</h2>
+        <p>你的英雄已暫時鎖定。保持此頁開啟；不想等了可以立即取消。</p>
+        <div class="search-orbit"><img id="searchHeroImage" alt="已選英雄" /></div>
+        <div class="search-meta"><div class="meta-tile"><span>等待時間</span><strong id="searchTime">00:00</strong></div><div class="meta-tile"><span>目前等待玩家</span><strong id="queueCount">—</strong></div></div>
+        <button class="primary-action secondary-action" id="cancelBtn" type="button">取消搜尋</button>
+        <p class="muted" id="searchMessage" role="status" aria-live="polite">正在連接配對伺服器…</p>
+      </div>
+    </section>
 
-    <button id="matchBtn">開始配對</button>
-
-    <div id="status">尚未開始配對</div>
-
-    <div class="tip">
-      請用兩個分頁或兩台裝置一起測試。<br />
-      角色送出後不可更換，請確認再開始配對。
-    </div>
-  </div>
+    <section class="stage" id="matchStage" hidden>
+      <div class="card stage-card">
+        <span class="eyebrow">03 / MATCH FOUND</span><h2>找到對手了</h2>
+        <p>確認這場對決。兩位玩家都按下準備後，才會進入戰場。</p>
+        <div class="match-pair"><div class="player-slot"><img id="myMatchImage" alt="我的英雄" /><strong id="myMatchName"></strong><span id="myMatchRole"></span></div><div class="versus">VS</div><div class="player-slot"><img id="enemyMatchImage" alt="對手英雄" /><strong id="enemyMatchName"></strong><span id="enemyMatchRole"></span></div></div>
+        <div class="meta-tile"><span>確認剩餘時間</span><strong id="confirmTime">00:30</strong></div>
+        <p class="ready-status" id="readyStatus" role="status" aria-live="polite">等待雙方確認</p>
+        <button class="primary-action" id="confirmBtn" type="button">準備好了</button>
+        <button class="primary-action secondary-action" id="declineBtn" type="button">放棄這場配對</button>
+      </div>
+    </section>
+    <p class="lobby-footer">線上雙人對戰 · 配對成功後角色不可更換 · 可隨時返回單機練習</p>
+  </main>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -165,6 +278,11 @@
     const statusEl = document.getElementById("status");
     const roleGrid = document.getElementById("roleGrid");
     const roleDetail = document.getElementById("roleDetail");
+    const heroArt = document.getElementById('heroArt');
+    const heroImage = document.getElementById('heroImage');
+    const connectionState = document.getElementById('connectionState');
+    const stages = { setup: document.getElementById('setupStage'), searching: document.getElementById('searchStage'), matched: document.getElementById('matchStage') };
+    const roleImages = { dawn: '/assets/heroes/dawn.webp', speeder: '/assets/heroes/speeder.webp', tank: '/assets/heroes/tank.webp', frenzy: '/assets/heroes/frenzy.webp', magma: '/assets/heroes/magma.webp', nova: '/assets/heroes/nova.webp', clone: '/assets/heroes/clone.webp' };
 
     const roles = [
       { id: 'dawn', name: '☀ 守曦者・無晝', desc: '餘燼反擊與黎明護盾', color: '#e8c67c', hp: 2200, speed: 10.5, attack: '碰撞 40，冷卻 0.2 秒；消耗最多 40 餘燼追加等量傷害。', passive: '實際受傷的 30%、護盾吸收量的 50% 化為餘燼，上限 120。每 5 秒獲得 100 護盾，持續 1.5 秒。反傷不產生餘燼或能量。', ultimate: '黎明必至：持續 3 秒，180 護盾、速度 14，最多兩次主球碰撞各追加 45 傷害，間隔至少 0.5 秒。期間停止回能。', numbers: '能量上限 100；主球有效碰撞 +10，實際失血每 20 點 +1。護盾不疊加。蓄滿餘燼的大招碰撞最高 125。故事：為了救回城外七十三人，他拆下背甲撐住城門。破碎光環一直未修——「我要記得，命令也可能是錯的。」' },
@@ -176,6 +294,57 @@
       { id: "clone", name: "👥 影分身", desc: "飛彈、分身與時間靜止", color: "#ff6b9d", attack: "普通飛彈傷害 25；大型飛彈傷害 500；分身碰撞傷害 5。", passive: "本體每 120 幀（2 秒）自動發射飛彈。", ultimate: "滿能量召喚 3～10 個分身；場上至少 5 個分身時，可啟動時間靜止與大型飛彈。", numbers: "普通飛彈冷卻 120 幀（2 秒）；大型飛彈冷卻 480 幀（8 秒）；分身半徑為主球 72%、速度為主球 95%。" },
     ];
     let selectedRole = sessionStorage.getItem("selectedQueueRole") || "speeder";
+    if (!roles.some((role) => role.id === selectedRole)) selectedRole = 'speeder';
+    playerNameInput.value = sessionStorage.getItem('lobbyPlayerName') || '';
+    playerNameInput.addEventListener('input', () => sessionStorage.setItem('lobbyPlayerName', playerNameInput.value));
+    let lobbyState = 'setup';
+    let playerKey = '';
+    let matchedRoom = null;
+    let searchStartedAt = 0;
+    let reconnectSearch = false;
+
+    function showStage(stage) {
+      lobbyState = stage;
+      for (const [name, element] of Object.entries(stages)) element.hidden = name !== stage;
+      matchBtn.disabled = stage !== 'setup' || !socket.connected;
+    }
+
+    function roleById(id) { return roles.find((role) => role.id === id) || roles[0]; }
+    function formatClock(seconds) { return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`; }
+    function updateClocks() {
+      if (lobbyState === 'searching') document.getElementById('searchTime').textContent = formatClock(Math.max(0, Math.floor((Date.now() - searchStartedAt) / 1000)));
+      if (lobbyState === 'matched' && matchedRoom?.deadlineAt) document.getElementById('confirmTime').textContent = formatClock(Math.max(0, Math.ceil((matchedRoom.deadlineAt - Date.now()) / 1000)));
+    }
+    setInterval(updateClocks, 250);
+
+    function showSearch(message) {
+      if (lobbyState !== 'searching') searchStartedAt = Date.now();
+      showStage('searching');
+      document.getElementById('searchHeroImage').src = roleImages[selectedRole];
+      document.getElementById('queueCount').textContent = '—';
+      document.getElementById('searchMessage').textContent = message || '等待另一位玩家…';
+      updateClocks();
+    }
+
+    function showMatch(data) {
+      matchedRoom = data;
+      playerKey = data.me?.playerKey || playerKey;
+      sessionStorage.setItem('playerKey', playerKey);
+      const me = data.players.find((player) => player.side === data.me.side);
+      const enemy = data.players.find((player) => player.side !== data.me.side);
+      if (!me || !enemy) return;
+      document.getElementById('myMatchImage').src = roleImages[me.selectedRole];
+      document.getElementById('enemyMatchImage').src = roleImages[enemy.selectedRole];
+      document.getElementById('myMatchName').textContent = me.name;
+      document.getElementById('enemyMatchName').textContent = enemy.name;
+      document.getElementById('myMatchRole').textContent = roleById(me.selectedRole).name;
+      document.getElementById('enemyMatchRole').textContent = roleById(enemy.selectedRole).name;
+      document.getElementById('confirmBtn').disabled = !!me.accepted;
+      document.getElementById('confirmBtn').textContent = me.accepted ? '已準備，等待對手' : '準備好了';
+      document.getElementById('readyStatus').textContent = me.accepted ? '你已確認，等待對手…' : enemy.accepted ? '對手已確認，輪到你了' : '等待雙方確認';
+      showStage('matched');
+      updateClocks();
+    }
 
     function renderRoleOptions() {
       roleGrid.innerHTML = "";
@@ -185,9 +354,9 @@
         button.className = `role-option${role.id === selectedRole ? " is-selected" : ""}`;
         button.setAttribute("aria-pressed", String(role.id === selectedRole));
         button.style.setProperty("--role-color", role.color);
-        button.innerHTML = `<strong>${role.name}</strong><small>${role.desc}</small>`;
+        button.innerHTML = `<img src="${roleImages[role.id]}" alt=""><span><strong>${role.name}</strong><small>${role.desc}</small></span>`;
         button.addEventListener("click", () => {
-          if (matchBtn.disabled) return;
+          if (lobbyState !== 'setup') return;
           selectedRole = role.id;
           sessionStorage.setItem("selectedQueueRole", selectedRole);
           renderRoleOptions();
@@ -195,56 +364,128 @@
         roleGrid.appendChild(button);
       });
       const role = roles.find((item) => item.id === selectedRole) || roles[0];
+      heroArt.style.setProperty('--role-color', role.color);
+      heroImage.src = roleImages[role.id];
+      heroImage.alt = role.name;
       roleDetail.style.setProperty("--role-color", role.color);
-      roleDetail.innerHTML = `<h2>${role.name}：詳細資料</h2><dl class="role-detail-grid"><dt>基礎數值</dt><dd>生命 ${role.hp || 2000}／基礎速度 ${role.speed || 12.2}／半徑 100</dd><dt>主要攻擊</dt><dd>${role.attack}</dd><dt>技能數值</dt><dd>${role.numbers}</dd><dt>被動</dt><dd>${role.passive}</dd><dt>大招</dt><dd>${role.ultimate}</dd><dt>選擇狀態</dt><dd>目前已選擇；開始配對後將鎖定。</dd></dl>`;
+      roleDetail.innerHTML = `<h2>${role.name}</h2><p class="muted">${role.desc}</p><dl class="role-detail-grid"><dt>基礎數值</dt><dd>生命 ${role.hp || 2000}／基礎速度 ${role.speed || 12.2}／半徑 100</dd><dt>主要攻擊</dt><dd>${role.attack}</dd><dt>技能數值</dt><dd>${role.numbers}</dd><dt>被動</dt><dd>${role.passive}</dd><dt>大招</dt><dd>${role.ultimate}</dd></dl>`;
     }
     renderRoleOptions();
-
-    let playerKey = sessionStorage.getItem("playerKey") || "";
+    showStage('setup');
 
     matchBtn.addEventListener("click", () => {
+      if (lobbyState !== 'setup' || !socket.connected) return;
+      const name = playerNameInput.value.trim() || '玩家';
+      sessionStorage.setItem('lobbyPlayerName', name);
       const payload = {
-        name: playerNameInput.value.trim() || "玩家",
+        name,
         role: selectedRole,
-        playerKey: playerKey || undefined,
       };
-
-      statusEl.textContent = "正在配對中...";
-      matchBtn.disabled = true;
+      showSearch('已送出配對請求，正在等待伺服器…');
       socket.emit("joinQueue", payload);
     });
 
+    document.getElementById('cancelBtn').addEventListener('click', () => {
+      if (lobbyState !== 'searching') return;
+      reconnectSearch = false;
+      socket.emit('cancelQueue');
+      showStage('setup');
+      statusEl.textContent = '已取消搜尋，可以更換英雄後再次配對';
+    });
+
+    document.getElementById('confirmBtn').addEventListener('click', () => {
+      if (lobbyState !== 'matched' || !matchedRoom) return;
+      document.getElementById('confirmBtn').disabled = true;
+      document.getElementById('confirmBtn').textContent = '確認中…';
+      socket.emit('confirmMatch', { roomId: matchedRoom.roomId, playerKey });
+    });
+
+    document.getElementById('declineBtn').addEventListener('click', () => {
+      if (lobbyState !== 'matched' || !matchedRoom) return;
+      socket.emit('declineMatch', { roomId: matchedRoom.roomId, playerKey });
+      matchedRoom = null;
+      showStage('setup');
+      statusEl.textContent = '已放棄本次配對';
+    });
+
     socket.on("queueJoined", (data) => {
-      statusEl.textContent = data.message || "已進入配對佇列";
+      if (lobbyState !== 'searching' && lobbyState !== 'matched') return;
       if (data.playerKey) {
         playerKey = data.playerKey;
         sessionStorage.setItem("playerKey", playerKey);
       }
+      if (lobbyState === 'entering') return;
+      matchedRoom = null;
+      showSearch(data.message || '等待另一位玩家…');
+    });
+
+    socket.on('queueStatus', (data) => {
+      if (lobbyState === 'searching') document.getElementById('queueCount').textContent = String(data.waiting ?? '—');
+    });
+
+    socket.on('queueCancelled', () => {
+      if (lobbyState === 'searching') { showStage('setup'); statusEl.textContent = '已取消搜尋'; }
+    });
+
+    socket.on('matchFound', (data) => {
+      if (lobbyState !== 'searching') {
+        socket.emit('declineMatch', { roomId: data.roomId, playerKey: data.me?.playerKey });
+        return;
+      }
+      showMatch(data);
+    });
+    socket.on('roomState', (data) => {
+      if (lobbyState === 'matched' && data.roomId === matchedRoom?.roomId && data.phase === 'match-found') showMatch(data);
+    });
+
+    socket.on('matchCancelled', (data) => {
+      if (lobbyState === 'entering') return;
+      matchedRoom = null;
+      showStage('setup');
+      statusEl.textContent = data.message || '配對已取消';
     });
 
     socket.on("gameStart", (data) => {
+      if (lobbyState === 'entering') return;
+      lobbyState = 'entering';
       if (data.me && data.me.playerKey) {
         sessionStorage.setItem("playerKey", data.me.playerKey);
       }
-
       sessionStorage.setItem("bounceRoomData", JSON.stringify(data));
-      statusEl.textContent = "配對成功，正在進入對戰頁...";
-
-      setTimeout(() => {
-        window.location.href = "/bounce.html";
-      }, 500);
+      document.getElementById('readyStatus').textContent = '雙方已準備，正在進入戰場…';
+      window.location.href = "/bounce.html";
     });
 
     socket.on("roomError", (data) => {
+      if (lobbyState === 'entering') return;
+      matchedRoom = null;
+      showStage('setup');
       statusEl.textContent = data.message || "房間發生錯誤";
-      matchBtn.disabled = false;
     });
 
     socket.on("disconnect", () => {
-      if (statusEl.textContent.includes("正在配對")) {
-        statusEl.textContent = "連線中斷，請重新整理後再試一次。";
-        matchBtn.disabled = false;
+      connectionState.classList.remove('is-online');
+      connectionState.textContent = '連線中斷';
+      if (lobbyState === 'searching') {
+        reconnectSearch = true;
+        document.getElementById('searchMessage').textContent = '連線中斷，恢復後會重新搜尋…';
+      } else if (lobbyState === 'matched') {
+        matchedRoom = null;
+        showStage('setup');
+        statusEl.textContent = '連線中斷，本次配對已失效';
       }
+      matchBtn.disabled = true;
+    });
+
+    socket.on('connect', () => {
+      connectionState.classList.add('is-online');
+      connectionState.textContent = '伺服器已連線';
+      if (reconnectSearch && lobbyState === 'searching') {
+        reconnectSearch = false;
+        socket.emit('joinQueue', { name: playerNameInput.value.trim() || '玩家', role: selectedRole });
+        document.getElementById('searchMessage').textContent = '連線已恢復，重新搜尋對手…';
+      }
+      if (lobbyState === 'setup') matchBtn.disabled = false;
     });
   </script>
 </body>

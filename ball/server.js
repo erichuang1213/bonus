@@ -18,6 +18,8 @@ const waitingPlayers = [];
 const rooms = new Map();
 const disconnectTimers = new Map();
 const roomCleanupTimers = new Map();
+const matchConfirmTimers = new Map();
+const MATCH_CONFIRM_MS = 30_000;
 
 // --- 遊戲物理常數 ---
 const ARENA_SIZE = 750;
@@ -113,6 +115,47 @@ function makePlayerKey() {
 function removeFromQueue(socketId) {
   const index = waitingPlayers.findIndex((p) => p.socketId === socketId);
   if (index !== -1) waitingPlayers.splice(index, 1);
+  return index !== -1;
+}
+
+function broadcastQueueStatus() {
+  for (const player of waitingPlayers) {
+    io.to(player.socketId).emit('queueStatus', { waiting: waitingPlayers.length });
+  }
+}
+
+function takeWaitingPlayer(exceptSocketId) {
+  while (waitingPlayers.length) {
+    const player = waitingPlayers.shift();
+    if (player.socketId !== exceptSocketId && io.sockets.sockets.has(player.socketId)) return player;
+  }
+  return null;
+}
+
+function clearMatchTimer(roomId) {
+  const timer = matchConfirmTimers.get(roomId);
+  if (timer) clearTimeout(timer);
+  matchConfirmTimers.delete(roomId);
+}
+
+function endPendingMatch(roomId, leavingKey = null, timedOut = false) {
+  const room = rooms.get(roomId);
+  if (!room || room.phase !== 'match-found') return;
+  clearMatchTimer(roomId);
+  rooms.delete(roomId);
+  for (const player of room.players) {
+    const peerSocket = io.sockets.sockets.get(player.socketId);
+    if (!peerSocket) continue;
+    peerSocket.leave(roomId);
+    const shouldRequeue = timedOut ? player.accepted : player.playerKey !== leavingKey;
+    if (shouldRequeue) {
+      waitingPlayers.push({ socketId: player.socketId, playerKey: player.playerKey, name: player.name, selectedRole: player.selectedRole });
+      peerSocket.emit('queueJoined', { playerKey: player.playerKey, message: timedOut ? '確認逾時，已繼續搜尋對手' : '對手離開，已繼續搜尋對手' });
+    } else {
+      peerSocket.emit('matchCancelled', { message: timedOut ? '配對確認逾時，請重新搜尋' : '已離開本次配對' });
+    }
+  }
+  broadcastQueueStatus();
 }
 
 function serializePlayer(p) {
@@ -123,6 +166,7 @@ function serializePlayer(p) {
     imageData: p.imageData || "",
     ready: p.ready,
     connected: p.connected,
+    accepted: !!p.accepted,
   };
 }
 
@@ -134,6 +178,7 @@ function emitToPlayer(socketId, event, room, player) {
   io.to(socketId).emit(event, {
     roomId: room.roomId,
     phase: room.phase,
+    deadlineAt: room.deadlineAt || null,
     me: serializeMe(player),
     players: room.players.map(serializePlayer),
   });
@@ -615,26 +660,27 @@ function maybeStartBattle(roomId) {
 
 io.on("connection", (socket) => {
   socket.on("joinQueue", (playerData = {}) => {
-    removeFromQueue(socket.id);
     if ([...rooms.values()].some((room) => room.players.some((p) => p.socketId === socket.id && p.connected))) {
       return socket.emit("roomError", { message: "你已在進行中的房間內" });
     }
-      const player = {
-        socketId: socket.id,
-        playerKey: playerData.playerKey || makePlayerKey(),
-        name: cleanName(playerData.name),
-        selectedRole: ALLOWED_ROLES.has(playerData.role) ? playerData.role : null,
+    const player = {
+      socketId: socket.id,
+      playerKey: makePlayerKey(),
+      name: cleanName(playerData.name),
+      selectedRole: ALLOWED_ROLES.has(playerData.role) ? playerData.role : null,
     };
     if (!player.selectedRole) {
       return socket.emit("roomError", { message: "請先選擇有效角色再開始配對" });
     }
+    removeFromQueue(socket.id);
 
-    if (waitingPlayers.length > 0) {
-      const enemy = waitingPlayers.shift();
+    const enemy = takeWaitingPlayer(socket.id);
+    if (enemy) {
       const roomId = makeRoomId();
       const roomData = {
         roomId,
-        phase: "character-select",
+        phase: "match-found",
+        deadlineAt: Date.now() + MATCH_CONFIRM_MS,
         players: [
           {
             socketId: enemy.socketId,
@@ -644,6 +690,7 @@ io.on("connection", (socket) => {
             selectedRole: enemy.selectedRole,
             ready: false,
             connected: true,
+            accepted: false,
           },
           {
             socketId: socket.id,
@@ -653,6 +700,7 @@ io.on("connection", (socket) => {
             selectedRole: player.selectedRole,
             ready: false,
             connected: true,
+            accepted: false,
           },
         ],
       };
@@ -661,15 +709,46 @@ io.on("connection", (socket) => {
       const enemySocket = io.sockets.sockets.get(enemy.socketId);
       if (enemySocket) enemySocket.join(roomId);
 
-      roomData.players.forEach((p) => emitToPlayer(p.socketId, "gameStart", roomData, p));
-      emitRoomState(roomId);
+      roomData.players.forEach((p) => emitToPlayer(p.socketId, "matchFound", roomData, p));
+      matchConfirmTimers.set(roomId, setTimeout(() => endPendingMatch(roomId, null, true), MATCH_CONFIRM_MS));
+      broadcastQueueStatus();
     } else {
       waitingPlayers.push(player);
       socket.emit("queueJoined", {
         message: "等待另一位玩家...",
         playerKey: player.playerKey,
       });
+      broadcastQueueStatus();
     }
+  });
+
+  socket.on('cancelQueue', () => {
+    if (!removeFromQueue(socket.id)) return;
+    socket.emit('queueCancelled', { message: '已取消搜尋' });
+    broadcastQueueStatus();
+  });
+
+  socket.on('confirmMatch', ({ roomId, playerKey } = {}) => {
+    const room = rooms.get(roomId);
+    if (!room || room.phase !== 'match-found') return;
+    const me = getOwnedPlayer(room, socket, playerKey);
+    if (!me || me.accepted) return;
+    me.accepted = true;
+    emitRoomState(roomId);
+    if (room.players.every((player) => player.accepted)) {
+      clearMatchTimer(roomId);
+      room.phase = 'character-select';
+      room.deadlineAt = null;
+      room.players.forEach((player) => emitToPlayer(player.socketId, 'gameStart', room, player));
+      emitRoomState(roomId);
+    }
+  });
+
+  socket.on('declineMatch', ({ roomId, playerKey } = {}) => {
+    const room = rooms.get(roomId);
+    if (!room || room.phase !== 'match-found') return;
+    const me = getOwnedPlayer(room, socket, playerKey);
+    if (me) endPendingMatch(roomId, me.playerKey);
   });
 
   socket.on("rejoinRoom", ({ roomId, playerKey }) => {
@@ -836,9 +915,14 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     removeFromQueue(socket.id);
+    broadcastQueueStatus();
     for (const [roomId, room] of rooms.entries()) {
       const leavingPlayer = room.players.find((p) => p.socketId === socket.id);
       if (!leavingPlayer) continue;
+      if (room.phase === 'match-found') {
+        endPendingMatch(roomId, leavingPlayer.playerKey);
+        continue;
+      }
       leavingPlayer.connected = false;
       emitRoomState(roomId);
       const timerKey = `${roomId}:${leavingPlayer.playerKey}`;
