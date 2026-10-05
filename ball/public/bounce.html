@@ -1015,6 +1015,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/dawn.js"></script>
+  <script src="/hero-cinematics.js"></script>
   <script>
     const DEFAULT_THEME = { bgColor: '#1a1a2e', accentColor: '#ffd700', btnPrimary: '#e94560', btnPrimaryHover: '#ff6b81', cardBg: '#16213e', cardBorder: '#0f3460', textColor: '#eeeeee', descColor: '#a0a0a0', statsColor: '#cccccc', hpBarBg: '#0f3460', hpBarBorder: '#333333', hpRedStart: '#ff4d4d', hpRedEnd: '#e94560', hpBlueStart: '#4dabf7', hpBlueEnd: '#00d2ff', energyBarBg: '#1a1a2e', energyBarBorder: '#444444', energyStart: '#ffd700', energyEnd: '#ffaa00', energyFullStart: '#ff5555', energyFullEnd: '#ff0000', canvasBg: '#16213e', roleDisplayBg: '#0f3460', roleDisplayBorder: '#1f4e79', gridColor: '#0f3460' };
     let currentTheme = { ...DEFAULT_THEME };
@@ -1193,6 +1194,7 @@
     }
 
     let balls = [], projectiles = [], swordFlashEffects = [], isRunning = false, animationId = null, gameOver = false, gameFrame = 0;
+    const heroCinematics = new HeroCinematics();
     let magmaPools = [];
     let damageTexts = [];
     let hitStopFrames = 0;
@@ -1535,13 +1537,18 @@
         if (this.roleId === 'magma') { this.lastMagmaPos = { x: this.x, y: this.y }; }
       }
       drawAt(x = this.x, y = this.y, scale = 1, alphaOverride = null) {
-        const style = this.visual.ballStyle; const alpha = alphaOverride !== null ? alphaOverride : (this.isClone ? 0.65 : 1); const img = this.ballImageObj; const hasImage = img && isImageReady(img); const drawRadius = this.radius * scale;
+        const style = this.visual.ballStyle; const alpha = alphaOverride !== null ? alphaOverride : (this.isClone ? 0.65 : 1);
+        const dawnAwakened = this.roleId === 'dawn' && !this.isClone && this.dawnUlt > 0;
+        const img = dawnAwakened ? heroCinematics.getDawnImage(this.ballImageObj) : this.ballImageObj;
+        const hasImage = img && isImageReady(img); const drawRadius = this.radius * scale;
         ctx.save(); ctx.globalAlpha = alpha;
         if (hasImage) {
           // 只裁切角色圖片。外側護盾、餘燼環與標籤必須畫在裁切區之外。
           ctx.save();
           ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); ctx.clip();
-          ctx.drawImage(img, x - drawRadius, y - drawRadius, drawRadius * 2, drawRadius * 2);
+          const portraitPulse = dawnAwakened ? 1.08 + Math.sin(gameFrame * 0.22) * 0.025 : 1;
+          const portraitRadius = drawRadius * portraitPulse;
+          ctx.drawImage(img, x - portraitRadius, y - portraitRadius, portraitRadius * 2, portraitRadius * 2);
           ctx.restore();
           ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); ctx.strokeStyle = this.heavyInjury ? '#ff0000' : style.borderColor; ctx.lineWidth = this.isClone ? style.borderWidth * 0.75 : style.borderWidth; ctx.stroke(); ctx.closePath();
         } else {
@@ -2306,6 +2313,10 @@
     function drawOpeningCinematic() {
       const p1 = getMainBall('p1'), p2 = getMainBall('p2'); if (!p1 || !p2) return;
       ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.38)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (openingAnimation.phase === 'approach' && !diagnosticEffectsDisabled) {
+        heroCinematics.drawIntro(ctx, p1, openingAnimation.frame, canvas.width, canvas.height);
+        heroCinematics.drawIntro(ctx, p2, openingAnimation.frame, canvas.width, canvas.height);
+      }
       const start1 = { x: canvas.width * 0.20, y: canvas.height * 0.80 }, start2 = { x: canvas.width * 0.80, y: canvas.height * 0.20 }, center1 = { x: canvas.width * 0.43, y: canvas.height * 0.57 }, center2 = { x: canvas.width * 0.57, y: canvas.height * 0.43 };
       if (openingAnimation.phase === 'approach') {
         const t = Math.min(1, openingAnimation.frame / OPENING_APPROACH_FRAMES), ease = 1 - Math.pow(1 - t, 3);
@@ -2529,6 +2540,16 @@
       if (!ONLINE_MODE || gameFrame % UI_UPDATE_INTERVAL === 0) updateHpUI();
     }
 
+    function updateHeroCinematicTriggers() {
+      if (openingAnimation.active) return;
+      for (const ball of balls) {
+        if (ball.isClone || ball.roleId !== 'dawn') continue;
+        const active = (ball.dawnUlt || 0) > 0;
+        if (active && !ball.dawnUltWasActive) heroCinematics.playDawn(ball);
+        ball.dawnUltWasActive = active;
+      }
+    }
+
     function gameLoop(currentTime) {
       if (!isRunning) return;
       const frameStartedAt = performance.now();
@@ -2560,6 +2581,7 @@
         }
       }
 
+      updateHeroCinematicTriggers();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.save();
 
@@ -2635,6 +2657,7 @@
       }
 
       ctx.restore();
+      heroCinematics.draw(ctx, canvas.width, canvas.height, currentTime, LOW_POWER_RENDERING, diagnosticEffectsDisabled);
       recordDiagnosticsFrame(frameStartedAt, simulationSteps);
       animationId = requestAnimationFrame(gameLoop);
     }
@@ -2651,6 +2674,7 @@
 
       // 🟢 2. 重置遊戲狀態
       if (animationId) cancelAnimationFrame(animationId);
+      heroCinematics.reset();
       gameOver = false; // 這是關鍵！如果沒重置，遊戲迴圈會卡死
       pauseOverlay?.classList.remove('is-visible');
       gameFrame = 0;
