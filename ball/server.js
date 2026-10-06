@@ -1,5 +1,6 @@
 const express = require("express");
 const Dawn = require('./public/dawn.js');
+const GameConfig = require('./public/game-config.js');
 const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
@@ -35,8 +36,6 @@ const MAGMA_STACK_DURATION = 240;
 const MAGMA_SLOW_PER_STACK = 0.06;
 const ARENA_DAMAGE = 12;
 const ARENA_DAMAGE_INTERVAL = 30;
-const JOKER_MAX_HP = 1850;
-const JOKER_BASE_SPEED = 11.5;
 const JOKER_BODY_DAMAGE = 30;
 const JOKER_CARD_LIFETIME = 180;
 const JOKER_CARD_ARM_DELAY = 18;
@@ -56,9 +55,7 @@ const FRENZY_ULTIMATE_SPEED = 28;
 const FRENZY_ULTIMATE_DAMAGE_REDUCE = 0.25;
 // 暴走續航只由有效的主球碰撞觸發；由伺服器結算，避免線上前端不同步。
 const FRENZY_ULTIMATE_HEAL_LOST_HP_RATIO = 0.30;
-const MAGMA_MAX_HP = 2400;
-const MAGMA_BASE_SPEED = 9.2;
-const ALLOWED_ROLES = new Set(["speeder", "tank", "frenzy", "magma", "nova", "clone", "dawn"]);
+const ALLOWED_ROLES = new Set(GameConfig.roleIds);
 const MAX_NAME_LENGTH = 24;
 const MAX_IMAGE_DATA_LENGTH = 300_000;
 const HIT_RULES = {
@@ -75,17 +72,11 @@ function cleanName(value) {
 }
 
 function getServerBaseSpeed(role) {
-  if (role === 'dawn') return 10.5;
-  if (role === "magma") return MAGMA_BASE_SPEED;
-  if (role === "nova") return JOKER_BASE_SPEED;
-  return 12.2;
+  return GameConfig.roles[role]?.speed || GameConfig.roles.speeder.speed;
 }
 
 function getServerMaxHp(role) {
-  if (role === 'dawn') return 2200;
-  if (role === "magma") return MAGMA_MAX_HP;
-  if (role === "nova") return JOKER_MAX_HP;
-  return 2000;
+  return GameConfig.roles[role]?.hp || GameConfig.roles.speeder.hp;
 }
 
 function resetBattlePositions(state) {

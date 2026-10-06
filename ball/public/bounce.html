@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>15×15 雙球對戰 - 完整版</title>
+  <title>雙球競技場｜對戰</title>
   <style>
     * {
       box-sizing: border-box;
@@ -802,17 +802,21 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="/battle-ui.css">
 </head>
 
 <body>
 
-  <h1>🏓 15×15 雙球對戰</h1>
-
-  <div class="top-bar">
-    <button id="btnUpdateLog">📜 更新日誌</button>
-    <button id="btnImageToggle">🖼️ 圖片管理器</button>
-    <button id="btnThemeToggle">🎨 主題編輯器</button>
-  </div>
+  <header class="game-header">
+    <div><span class="game-kicker">BALL ARENA · 15×15</span><h1>雙球競技場</h1></div>
+    <div class="header-right"><span class="mode-pill" id="modePill">單機練習</span>
+      <div class="top-bar">
+        <button id="btnUpdateLog">更新日誌</button>
+        <button id="btnImageToggle">角色圖片</button>
+        <button id="btnThemeToggle">外觀設定</button>
+      </div>
+    </div>
+  </header>
 
   <div class="editor-panel" id="updateLogPanel"
     style="display: none; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(90vw, 420px); z-index: 300;">
@@ -864,6 +868,7 @@
 
   <div id="charSelect">
     <div class="select-title" id="selectTitle">🔴 玩家 1 請選擇角色</div>
+    <p class="select-subtitle" id="selectSubtitle">先選紅方，再選藍方。角色能力會自動施放，對戰由兩球自行碰撞進行。</p>
     <div class="carousel-box">
       <div class="role-display" id="roleIcon">⚡</div>
       <div class="role-name" id="roleName">⚡ 疾風球</div>
@@ -878,15 +883,14 @@
         <button class="arrow-btn" id="btnNext">▶</button>
       </div>
     </div>
+    <div class="role-pick-grid" id="localRoleGrid" aria-label="快速選擇角色"></div>
     <button id="btnConfirm">確定選擇</button>
   </div>
 
   <div id="gameArea">
     <div class="battle-layout">
-      <div class="side-panel red" id="panelP1">
-        <div class="panel-title">🔴 玩家 1</div>
-        <div class="panel-avatar" id="panelP1Avatar">⚡</div>
-        <div class="panel-role" id="panelP1Role">角色名稱</div>
+      <details class="side-panel red" id="panelP1">
+        <summary><div class="panel-avatar" id="panelP1Avatar">⚡</div><div class="panel-summary-text"><div class="panel-title">🔴 玩家 1</div><div class="panel-role" id="panelP1Role">角色名稱</div><span class="panel-expand-hint">點擊查看技能與數值</span></div></summary>
         <div class="panel-desc" id="panelP1Desc">角色描述</div>
         <div class="panel-grid">
           <div class="panel-stat">
@@ -920,12 +924,13 @@
           </div>
         </div>
         <div class="panel-note" id="panelP1Note">技能資訊</div>
-      </div>
+      </details>
 
       <div class="center-battle">
         <div class="hp-area">
           <div class="hp-box hp-red">
             <div class="hp-label"><span id="nameRed">🔴 紅方</span><span id="hpRedText">2000 / 2000</span></div>
+            <div class="hud-state" id="redState">準備中</div>
             <div class="hp-bar-bg">
               <div class="hp-bar-fill" id="hpRedBar"></div>
             </div>
@@ -935,6 +940,7 @@
           </div>
           <div class="hp-box hp-blue">
             <div class="hp-label"><span id="hpBlueText">2000 / 2000</span><span id="nameBlue">🔵 藍方</span></div>
+            <div class="hud-state" id="blueState">準備中</div>
             <div class="hp-bar-bg">
               <div class="hp-bar-fill" id="hpBlueBar"></div>
             </div>
@@ -956,10 +962,8 @@
         </div>
       </div>
 
-      <div class="side-panel blue" id="panelP2">
-        <div class="panel-title">🔵 玩家 2</div>
-        <div class="panel-avatar" id="panelP2Avatar">⚡</div>
-        <div class="panel-role" id="panelP2Role">角色名稱</div>
+      <details class="side-panel blue" id="panelP2">
+        <summary><div class="panel-avatar" id="panelP2Avatar">⚡</div><div class="panel-summary-text"><div class="panel-title">🔵 玩家 2</div><div class="panel-role" id="panelP2Role">角色名稱</div><span class="panel-expand-hint">點擊查看技能與數值</span></div></summary>
         <div class="panel-desc" id="panelP2Desc">角色描述</div>
         <div class="panel-grid">
           <div class="panel-stat">
@@ -993,18 +997,10 @@
           </div>
         </div>
         <div class="panel-note" id="panelP2Note">技能資訊</div>
-      </div>
+      </details>
     </div>
 
-    <div class="info">
-      命中對方（碰撞或飛彈）累積能量 💥<br>
-      開場先播放對撞動畫：左下 vs 右上，相撞後全畫面白色斜槓與火焰特效，接著 3、2、1、Game Start 🔥<br>
-      主球半徑固定為 100，角色依定位有不同血量 ⚡<br>
-      「狂暴」暴走期間每次主球碰撞回復已損生命 30%，速度 28、減傷 25%，持續 2 秒 🗡️<br>
-      「影分身」本體每 2 秒自動發射半徑 30 的普通飛彈，傷害 25 🚀<br>
-      滿能量時只會召喚 3~10 個影分身；只有當場上分身數量大於等於 5，且消耗分身時仍然足夠 5 個，才會啟動「時間靜止領域」並發射大型飛彈 👥<br>
-      <span style="color:#ff6b6b">⚠️ 分身只有 1 次碰撞機會，單次碰撞造成 5 點傷害後消失，並回收 5 點能量</span>
-    </div>
+    <details class="rules-disclosure"><summary>如何觀看這場對戰</summary><p>這是自動對戰：兩球自行移動與碰撞，技能依角色條件觸發。上方顯示生命、能量與關鍵狀態；點擊下方角色卡可看詳細數值。單機可暫停與重新開始，線上對戰須雙方同意才能再戰。</p></details>
   </div>
 
   <aside class="diagnostics-panel" id="diagnosticsPanel" aria-live="polite">
@@ -1014,6 +1010,7 @@
   </aside>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/game-config.js"></script>
   <script src="/dawn.js"></script>
   <script src="/hero-cinematics.js"></script>
   <script>
@@ -1023,7 +1020,6 @@
     const imageCache = {};
     function loadImage(src) { if (!src) return null; if (imageCache[src]) return imageCache[src]; const img = new Image(); img.src = src; imageCache[src] = img; return img; }
     function isImageReady(img) { return img && img.complete && img.naturalWidth > 0; }
-    function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]); }
 
     const ROLE_VISUALS = {
       dawn: { name: '☀ 守曦者・無晝', desc: '承傷蓄積餘燼，護盾迎擊，黎明反攻', icon: '☀', image: '', defaultImage: '/assets/heroes/dawn.webp', ballStyle: { borderColor: '#e8c67c', borderWidth: 2, innerGradient: ['#f0d399', '#15263c'] }, cardStyle: { borderColor: '#e8c67c', glowColor: 'rgba(232,198,124,.4)', nameColor: '#e8c67c' } },
@@ -1035,16 +1031,8 @@
       clone: { name: '👥 影分身', desc: '只有此角色擁有大型飛彈與時間靜止領域', icon: '👥', image: '', defaultImage: '/assets/heroes/clone.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9ff3', '#ff6b9d'] }, cardStyle: { borderColor: '#7775ff', glowColor: 'rgba(119, 117, 255, 0.4)', nameColor: '#a5a6ff' } }
     };
     function getRoleImage(visual) { return visual?.image || visual?.defaultImage || ''; }
-    const GLOBAL_BASE_SPEED = 10, BASE_RADIUS = 100;
-    const ROLES = [
-      { id: 'dawn', hp: 2200, speed: 10.5, radius: BASE_RADIUS, skill: 'dawn' },
-      { id: 'speeder', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'none' },
-      { id: 'tank', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'none' },
-      { id: 'frenzy', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'sword' },
-      { id: 'magma', hp: 2400, speed: 9.2, radius: BASE_RADIUS, skill: 'magma' },
-      { id: 'nova', hp: 1850, speed: 11.5, radius: BASE_RADIUS, skill: 'joker' },
-      { id: 'clone', hp: 2000, speed: GLOBAL_BASE_SPEED, radius: BASE_RADIUS, skill: 'missile' }
-    ];
+    const BASE_RADIUS = GameConfig.roles.speeder.radius;
+    const ROLES = GameConfig.roleIds.map(id => ({ id, ...GameConfig.roles[id] }));
 
     function buildImageManager() {
       const container = document.getElementById('imageRows'); container.innerHTML = '';
@@ -1081,6 +1069,9 @@
     }
 
     const ONLINE_MODE = !!sessionStorage.getItem("bounceRoomData");
+    const modePill = document.getElementById('modePill');
+    modePill.textContent = ONLINE_MODE ? '線上對戰' : '單機練習';
+    modePill.classList.toggle('online', ONLINE_MODE);
     let currentIndex = 0, selectingPlayer = 1, p1Choice = null, p2Choice = null;
     let onlineSelectionLocked = false, onlineSocket = null, onlineRoomData = null, onlineStarted = false;
 
@@ -1093,6 +1084,13 @@
     const selectTitle = document.getElementById('selectTitle'), roleIcon = document.getElementById('roleIcon');
     const roleName = document.getElementById('roleName'), roleDesc = document.getElementById('roleDesc');
     const roleHp = document.getElementById('roleHp'), roleSpeed = document.getElementById('roleSpeed'), pageIndicator = document.getElementById('pageIndicator');
+    const rolePickGrid = document.getElementById('localRoleGrid');
+    const selectSubtitle = document.getElementById('selectSubtitle');
+    if (ONLINE_MODE) {
+      charSelect.classList.add('online-loading');
+      selectTitle.textContent = '正在連接線上對戰';
+      selectSubtitle.textContent = '角色已在配對大廳鎖定，正在等待雙方進入賽場。';
+    }
 
     function updateCarousel() {
       const r = ROLES[currentIndex]; const visual = ROLE_VISUALS[r.id];
@@ -1105,6 +1103,23 @@
       roleName.textContent = visual.name; roleName.style.color = visual.cardStyle.nameColor;
       roleDesc.textContent = visual.desc; roleHp.textContent = r.hp; roleSpeed.textContent = r.speed.toFixed(1);
       pageIndicator.textContent = `${currentIndex + 1} / ${ROLES.length}`;
+      rolePickGrid.replaceChildren(...ROLES.map((role, index) => {
+        const candidate = ROLE_VISUALS[role.id];
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `role-pick${index === currentIndex ? ' is-active' : ''}`;
+        button.style.setProperty('--role-accent', candidate.cardStyle.borderColor);
+        button.setAttribute('aria-pressed', String(index === currentIndex));
+        button.setAttribute('aria-label', candidate.name);
+        const image = document.createElement('img');
+        image.src = getRoleImage(candidate);
+        image.alt = '';
+        const label = document.createElement('span');
+        label.textContent = candidate.name;
+        button.append(image, label);
+        button.addEventListener('click', () => { if (!onlineSelectionLocked) { currentIndex = index; updateCarousel(); } });
+        return button;
+      }));
     }
 
     document.getElementById("btnPrev").addEventListener("click", () => { if (onlineSelectionLocked) return; currentIndex = (currentIndex - 1 + ROLES.length) % ROLES.length; updateCarousel(); });
@@ -1121,7 +1136,7 @@
         onlineSocket.emit("playerReady", { roomId: onlineRoomData.roomId, playerKey: onlineRoomData.me.playerKey });
         return;
       }
-      if (selectingPlayer === 1) { p1Choice = ROLES[currentIndex].id; selectingPlayer = 2; selectTitle.textContent = "🔵 玩家 2 請選擇角色"; selectTitle.style.color = "#4dabf7"; currentIndex = 0; updateCarousel(); }
+      if (selectingPlayer === 1) { p1Choice = ROLES[currentIndex].id; selectingPlayer = 2; selectTitle.textContent = "🔵 玩家 2 請選擇角色"; selectTitle.style.color = "#4dabf7"; selectSubtitle.textContent = `紅方已選 ${ROLE_VISUALS[p1Choice].name}。請選擇藍方角色。`; currentIndex = 0; updateCarousel(); }
       else { p2Choice = ROLES[currentIndex].id; charSelect.style.display = "none"; gameArea.style.display = "flex"; initGame(); }
     });
 
@@ -1520,8 +1535,8 @@
         this.x = gridX * CELL_SIZE + CELL_SIZE / 2; this.y = gridY * CELL_SIZE + CELL_SIZE / 2;
         if (options.absolutePosition) { this.x = options.absolutePosition.x; this.y = options.absolutePosition.y; }
         this.vx = playerTag === 'p1' ? roleData.speed : -roleData.speed; this.vy = playerTag === 'p1' ? roleData.speed * 0.7 : -roleData.speed * 0.7;
-        this.baseSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        if (roleData.id === 'dawn') this.baseSpeed = roleData.speed;
+        // speed 是速度大小，不是 x 軸速度；斜向初速必須正規化後再套入。
+        this.baseSpeed = roleData.speed;
         this.visual = ROLE_VISUALS[roleData.id]; this.hp = options.hp !== undefined ? options.hp : roleData.hp; this.maxHp = options.maxHp !== undefined ? options.maxHp : roleData.hp;
         this.radius = options.radius || roleData.radius; this.playerTag = playerTag; this.roleId = roleData.id; this.skill = options.skill !== undefined ? options.skill : roleData.skill;
         this.energy = 0; this.maxEnergy = MAX_ENERGY; this.missileCooldown = 0; this.bigMissileCooldown = 0;
@@ -1787,6 +1802,17 @@
       });
     }
 
+    function getCompactHudState(ball) {
+      if (!ball) return '等待角色';
+      if (ball.heavyInjury) return '重傷狀態';
+      if (ball.roleId === 'dawn') return `餘燼 ${Math.floor(ball.dawnEmber || 0)}/120 · 護盾 ${Math.ceil(ball.dawnShield || 0)}${ball.dawnUlt > 0 ? ' · 黎明' : ''}`;
+      if (ball.roleId === 'frenzy') return `偷速 ${ball.frenzyStacks || 0}/5${ball.ultimateTimer > 0 ? ' · 暴走中' : ''}`;
+      if (ball.roleId === 'magma') return ball.magmaUltTimer > 0 ? '火山封鎖中' : '岩漿持續鋪設';
+      if (ball.roleId === 'nova') return ball.jokerShowTimer > 0 ? '鬼牌秀進行中' : '蓋牌待命';
+      if (ball.roleId === 'clone') return '分身與飛彈待命';
+      return `能量 ${Math.round(ball.energy || 0)}/100`;
+    }
+
     function updateHpUI() {
       const mainRed = getMainBall('p1'), mainBlue = getMainBall('p2');
       let p1Name = "玩家 1", p2Name = "玩家 2";
@@ -1803,18 +1829,16 @@
       if (mainRed) {
         const redHp = Math.max(0, Math.round(mainRed.hp)); hpRedBar.style.width = (redHp / mainRed.maxHp * 100) + '%'; hpRedText.textContent = `${redHp} / ${mainRed.maxHp}`;
         const redEn = Math.max(0, mainRed.energy); energyRedBar.style.width = (redEn / MAX_ENERGY * 100) + '%'; energyRedBar.classList.toggle('full', redEn >= MAX_ENERGY);
-        let redHtml = `🔴 ${escapeHtml(p1Name)} (${mainRed.visual.name})`;
-        if (mainRed.roleId === 'dawn') { const dawn = getDawnEmberState(mainRed.dawnEmber); redHtml += ` <span style="color:#ffd387;font-size:10px">[餘燼 ${Math.floor(dawn.ember)}/120 · 第${dawn.chargingStage}層]</span>`; if (mainRed.dawnShield > 0) redHtml += ` <span style="color:#8bd3ff;font-size:10px">[盾 ${Math.ceil(mainRed.dawnShield)}]</span>`; if (mainRed.dawnUlt > 0) redHtml += ' <span style="color:#fff0a3;font-size:11px">[黎明]</span>'; } else if (mainRed.roleId === 'frenzy') { redHtml += ` <span style="color:#ff6b6b;font-size:10px">[${mainRed.frenzyStacks}/5]</span>`; if (mainRed.ultimateTimer > 0) redHtml += ' <span style="color:#ffd700;font-size:11px">[暴走減傷25%]</span>'; } else if (mainRed.heavyInjury) redHtml += ' <span class="heavy-injury-badge">重傷</span>';
-        nameRed.innerHTML = redHtml;
-      } else { hpRedBar.style.width = '0%'; hpRedText.textContent = '0 / 0'; energyRedBar.style.width = '0%'; energyRedBar.classList.remove('full'); nameRed.innerHTML = `🔴 ${escapeHtml(p1Name)}`; }
+        nameRed.textContent = `🔴 ${p1Name}`;
+        document.getElementById('redState').textContent = `${mainRed.visual.name} · ${getCompactHudState(mainRed)}`;
+      } else { hpRedBar.style.width = '0%'; hpRedText.textContent = '0 / 0'; energyRedBar.style.width = '0%'; energyRedBar.classList.remove('full'); nameRed.textContent = `🔴 ${p1Name}`; document.getElementById('redState').textContent = '等待角色'; }
 
       if (mainBlue) {
         const blueHp = Math.max(0, Math.round(mainBlue.hp)); hpBlueBar.style.width = (blueHp / mainBlue.maxHp * 100) + '%'; hpBlueText.textContent = `${blueHp} / ${mainBlue.maxHp}`;
         const blueEn = Math.max(0, mainBlue.energy); energyBlueBar.style.width = (blueEn / MAX_ENERGY * 100) + '%'; energyBlueBar.classList.toggle('full', blueEn >= MAX_ENERGY);
-        let blueHtml = `🔵 ${escapeHtml(p2Name)} (${mainBlue.visual.name})`;
-        if (mainBlue.roleId === 'dawn') { const dawn = getDawnEmberState(mainBlue.dawnEmber); blueHtml += ` <span style="color:#ffd387;font-size:10px">[餘燼 ${Math.floor(dawn.ember)}/120 · 第${dawn.chargingStage}層]</span>`; if (mainBlue.dawnShield > 0) blueHtml += ` <span style="color:#8bd3ff;font-size:10px">[盾 ${Math.ceil(mainBlue.dawnShield)}]</span>`; if (mainBlue.dawnUlt > 0) blueHtml += ' <span style="color:#fff0a3;font-size:11px">[黎明]</span>'; } else if (mainBlue.roleId === 'frenzy') { blueHtml += ` <span style="color:#ff6b6b;font-size:10px">[${mainBlue.frenzyStacks}/5]</span>`; if (mainBlue.ultimateTimer > 0) blueHtml += ' <span style="color:#ffd700;font-size:11px">[暴走減傷25%]</span>'; } else if (mainBlue.heavyInjury) blueHtml += ' <span class="heavy-injury-badge">重傷</span>';
-        nameBlue.innerHTML = blueHtml;
-      } else { hpBlueBar.style.width = '0%'; hpBlueText.textContent = '0 / 0'; energyBlueBar.style.width = '0%'; energyBlueBar.classList.remove('full'); nameBlue.innerHTML = `🔵 ${escapeHtml(p2Name)}`; }
+        nameBlue.textContent = `🔵 ${p2Name}`;
+        document.getElementById('blueState').textContent = `${mainBlue.visual.name} · ${getCompactHudState(mainBlue)}`;
+      } else { hpBlueBar.style.width = '0%'; hpBlueText.textContent = '0 / 0'; energyBlueBar.style.width = '0%'; energyBlueBar.classList.remove('full'); nameBlue.textContent = `🔵 ${p2Name}`; document.getElementById('blueState').textContent = '等待角色'; }
 
       updateSidePanels();
     }
@@ -2159,7 +2183,8 @@
       if (!battleStats) return '';
       const p1Main = ROLES.find(r => r.id === p1Choice), p2Main = ROLES.find(r => r.id === p2Choice);
       const p1Name = p1Main ? ROLE_VISUALS[p1Main.id].name : '🔴 紅方', p2Name = p2Main ? ROLE_VISUALS[p2Main.id].name : '🔵 藍方';
-      return `<div class="result-stats"><div class="result-stats-title">📊 本場數據統計</div><div class="result-row result-head"><div>角色</div><div>造成傷害</div><div>承受傷害</div><div>回復總量</div></div><div class="result-row"><div class="result-name">🔴 ${p1Name}</div><div class="result-cell">${battleStats.p1.totalDamageDealt}</div><div class="result-cell">${battleStats.p1.totalDamageTaken}</div><div class="result-cell">${battleStats.p1.totalHealing}</div></div><div class="result-row"><div class="result-name">🔵 ${p2Name}</div><div class="result-cell">${battleStats.p2.totalDamageDealt}</div><div class="result-cell">${battleStats.p2.totalDamageTaken}</div><div class="result-cell">${battleStats.p2.totalHealing}</div></div></div>`;
+      const formatStat = value => Math.max(0, Math.round(Number(value) || 0)).toLocaleString('zh-TW');
+      return `<div class="result-stats"><div class="result-stats-title">📊 本場數據統計</div><div class="result-row result-head"><div>角色</div><div>造成傷害</div><div>承受傷害</div><div>回復總量</div></div><div class="result-row"><div class="result-name">🔴 ${p1Name}</div><div class="result-cell">${formatStat(battleStats.p1.totalDamageDealt)}</div><div class="result-cell">${formatStat(battleStats.p1.totalDamageTaken)}</div><div class="result-cell">${formatStat(battleStats.p1.totalHealing)}</div></div><div class="result-row"><div class="result-name">🔵 ${p2Name}</div><div class="result-cell">${formatStat(battleStats.p2.totalDamageDealt)}</div><div class="result-cell">${formatStat(battleStats.p2.totalDamageTaken)}</div><div class="result-cell">${formatStat(battleStats.p2.totalHealing)}</div></div></div>`;
     }
 
     function endGame(winnerTag, loserTag) {
@@ -2729,10 +2754,10 @@
       } else {
         btnStart.textContent = '重新開始';
         btnStart.disabled = false;
-        btnPause.style.display = '';
+        btnPause.style.display = gameOver ? 'none' : '';
         btnPause.textContent = isRunning ? '暫停對戰' : '繼續對戰';
         btnBack.textContent = '返回選角';
-        controlHint.textContent = isRunning ? '暫停會凍結單機對戰；重新開始會立刻重置本局。' : '目前已暫停，按「繼續對戰」回到賽場。';
+        controlHint.textContent = gameOver ? '本局結束。可重新開始，或返回選角。' : isRunning ? '暫停會凍結單機對戰；重新開始會立刻重置本局。' : '目前已暫停，按「繼續對戰」回到賽場。';
       }
     }
 
@@ -2748,7 +2773,7 @@
       const topBar = document.querySelector('.top-bar');
       if (topBar) topBar.style.display = 'flex';
 
-      isRunning = false; pauseOverlay.classList.remove('is-visible'); if (animationId) cancelAnimationFrame(animationId); gameArea.style.display = 'none'; charSelect.style.display = 'flex'; selectingPlayer = 1; p1Choice = null; p2Choice = null; selectTitle.textContent = '🔴 玩家 1 請選擇角色'; selectTitle.style.color = '#ffd700'; currentIndex = 0; updateCarousel();
+      isRunning = false; pauseOverlay.classList.remove('is-visible'); if (animationId) cancelAnimationFrame(animationId); gameArea.style.display = 'none'; charSelect.style.display = 'flex'; selectingPlayer = 1; p1Choice = null; p2Choice = null; selectTitle.textContent = '🔴 玩家 1 請選擇角色'; selectTitle.style.color = '#ffd700'; selectSubtitle.textContent = '先選紅方，再選藍方。角色能力會自動施放，對戰由兩球自行碰撞進行。'; currentIndex = 0; updateCarousel();
     }
 
     document.getElementById('btnStart').addEventListener('click', () => {
