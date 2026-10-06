@@ -1013,6 +1013,7 @@
   <script src="/game-config.js"></script>
   <script src="/dawn.js"></script>
   <script src="/hero-cinematics.js"></script>
+  <script src="/opening-cinematic.js"></script>
   <script>
     const DEFAULT_THEME = { bgColor: '#1a1a2e', accentColor: '#ffd700', btnPrimary: '#e94560', btnPrimaryHover: '#ff6b81', cardBg: '#16213e', cardBorder: '#0f3460', textColor: '#eeeeee', descColor: '#a0a0a0', statsColor: '#cccccc', hpBarBg: '#0f3460', hpBarBorder: '#333333', hpRedStart: '#ff4d4d', hpRedEnd: '#e94560', hpBlueStart: '#4dabf7', hpBlueEnd: '#00d2ff', energyBarBg: '#1a1a2e', energyBarBorder: '#444444', energyStart: '#ffd700', energyEnd: '#ffaa00', energyFullStart: '#ff5555', energyFullEnd: '#ff0000', canvasBg: '#16213e', roleDisplayBg: '#0f3460', roleDisplayBorder: '#1f4e79', gridColor: '#0f3460' };
     let currentTheme = { ...DEFAULT_THEME };
@@ -1147,8 +1148,9 @@
     const MISSILE_COOLDOWN = 120, BIG_MISSILE_COOLDOWN = 480, MISSILE_SPEED = 8, CLONE_MISSILE_SPEED = MISSILE_SPEED * 2, BOUNCE_ANGLE_VAR = 10;
     const CLONE_MIN_COUNT = 3, CLONE_MAX_COUNT = 10, CLONE_TRIGGER_COUNT = 5, CLONE_RADIUS_SCALE = 0.72, CLONE_SPEED_SCALE = 0.95, COLLISION_COOLDOWN_FRAMES = 10;
     const SWORD_DAMAGE = 20, SWORD_COOLDOWN = 90, FRENZY_MAX_STACKS = 5, FRENZY_STEAL_SPEED = 1, FRENZY_ULTIMATE_DURATION = 120, FRENZY_DAMAGE_REDUCE_PER_STACK = 0.03, FRENZY_ULTIMATE_DAMAGE_REDUCE = 0.25, FRENZY_ULTIMATE_SPEED = 28, SWORD_RANGE = 180, SWORD_ARC = Math.PI * 2 / 3;
-    const OPENING_APPROACH_FRAMES = 48, OPENING_IMPACT_FRAMES = 120, OPENING_COUNTDOWN_FRAMES = 240, TIME_STOP_TOTAL_FRAMES = 96, TIME_STOP_ERASE_FRAME = 34, TIME_STOP_MISSILE_FRAME = 62;
+    const TIME_STOP_TOTAL_FRAMES = 96, TIME_STOP_ERASE_FRAME = 34, TIME_STOP_MISSILE_FRAME = 62;
     const LOW_POWER_RENDERING = window.matchMedia('(max-width: 768px)').matches || (navigator.hardwareConcurrency || 8) <= 4;
+    const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const UI_UPDATE_INTERVAL = LOW_POWER_RENDERING ? 12 : 6;
     const MAX_RENDERED_MAGMA_POOLS = LOW_POWER_RENDERING ? 8 : 48;
     const MAX_RENDERED_PROJECTILE_TRAIL = LOW_POWER_RENDERING ? 8 : 16;
@@ -2308,69 +2310,22 @@
       });
     }
 
-    function updateOpeningAnimation() {
-      if (!openingAnimation.active) return; openingAnimation.frame++;
-      if (openingAnimation.phase === 'approach' && openingAnimation.frame >= OPENING_APPROACH_FRAMES) { openingAnimation.phase = 'impact'; openingAnimation.frame = 0; return; }
-      if (openingAnimation.phase === 'impact' && openingAnimation.frame >= OPENING_IMPACT_FRAMES) { openingAnimation.phase = 'countdown'; openingAnimation.frame = 0; openingAnimation.countdownValue = 3; return; }
-      if (openingAnimation.phase === 'countdown') {
-        const elapsed = openingAnimation.frame;
-        if (elapsed < 60) openingAnimation.countdownValue = 3; else if (elapsed < 120) openingAnimation.countdownValue = 2; else if (elapsed < 180) openingAnimation.countdownValue = 1; else if (elapsed < 240) openingAnimation.countdownValue = 'Game Start';
-        if (openingAnimation.frame >= OPENING_COUNTDOWN_FRAMES) { openingAnimation.active = false; openingAnimation.phase = 'done'; openingAnimation.frame = 0; }
-      }
-    }
-
-    function drawOpeningFlames(cx, cy, intensity) {
-      for (let i = 0; i < 34; i++) {
-        const angle = (Math.PI / 4) + (Math.random() - 0.5) * 0.55, spread = 280 * intensity, shift = (Math.random() - 0.5) * spread, x = cx + Math.cos(angle + Math.PI / 2) * shift, y = cy + Math.sin(angle + Math.PI / 2) * shift, len = 20 + Math.random() * 55 * intensity, rad = 6 + Math.random() * 12;
-        const grad = ctx.createRadialGradient(x, y, 0, x, y, rad + len); grad.addColorStop(0, 'rgba(255,255,220,0.98)'); grad.addColorStop(0.30, 'rgba(255,210,80,0.90)'); grad.addColorStop(0.60, 'rgba(255,120,0,0.65)'); grad.addColorStop(1, 'rgba(255,0,0,0)');
-        ctx.fillStyle = grad; ctx.beginPath(); ctx.ellipse(x, y, rad, len, angle, 0, Math.PI * 2); ctx.fill();
-      }
-    }
-
-    function drawOpeningSlash(cx, cy, power) {
-      ctx.save(); ctx.translate(cx, cy); ctx.rotate(Math.PI / 4);
-      ctx.shadowBlur = 80 * power; ctx.shadowColor = 'rgba(255,255,255,1)'; ctx.fillStyle = 'rgba(255,255,255,0.98)'; ctx.fillRect(-650, -10, 1300, 20);
-      ctx.shadowBlur = 140 * power; ctx.shadowColor = 'rgba(255,220,180,0.95)'; ctx.fillStyle = 'rgba(255,245,225,0.82)'; ctx.fillRect(-650, -22, 1300, 44);
-      ctx.shadowBlur = 180 * power; ctx.shadowColor = 'rgba(255,120,40,0.9)'; ctx.fillStyle = 'rgba(255,200,120,0.28)'; ctx.fillRect(-650, -40, 1300, 80);
-      ctx.restore();
+    function updateOpeningAnimation(frame = openingAnimation.frame + 1) {
+      if (!openingAnimation.active) return;
+      openingAnimation.frame = Math.min(OpeningCinematic.TIMING.total, Math.max(0, Number(frame) || 0));
+      const state = OpeningCinematic.phaseAt(openingAnimation.frame);
+      openingAnimation.phase = state.phase;
+      openingAnimation.countdownValue = state.countdownValue;
+      if (state.phase === 'done') openingAnimation.active = false;
     }
 
     function drawOpeningCinematic() {
       const p1 = getMainBall('p1'), p2 = getMainBall('p2'); if (!p1 || !p2) return;
-      ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.38)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      if (openingAnimation.phase === 'approach' && !diagnosticEffectsDisabled) {
-        heroCinematics.drawIntro(ctx, p1, openingAnimation.frame, canvas.width, canvas.height);
-        heroCinematics.drawIntro(ctx, p2, openingAnimation.frame, canvas.width, canvas.height);
-      }
-      const start1 = { x: canvas.width * 0.20, y: canvas.height * 0.80 }, start2 = { x: canvas.width * 0.80, y: canvas.height * 0.20 }, center1 = { x: canvas.width * 0.43, y: canvas.height * 0.57 }, center2 = { x: canvas.width * 0.57, y: canvas.height * 0.43 };
-      if (openingAnimation.phase === 'approach') {
-        const t = Math.min(1, openingAnimation.frame / OPENING_APPROACH_FRAMES), ease = 1 - Math.pow(1 - t, 3);
-        const p1x = start1.x + (center1.x - start1.x) * ease, p1y = start1.y + (center1.y - start1.y) * ease, p2x = start2.x + (center2.x - start2.x) * ease, p2y = start2.y + (center2.y - start2.y) * ease;
-        for (let i = 0; i < 4; i++) {
-          const tt = Math.max(0, ease - (i * 10) / 100); ctx.globalAlpha = 0.08 + i * 0.05;
-          p1.drawAt(start1.x + (center1.x - start1.x) * tt, start1.y + (center1.y - start1.y) * tt, 1 - i * 0.05); p2.drawAt(start2.x + (center2.x - start2.x) * tt, start2.y + (center2.y - start2.y) * tt, 1 - i * 0.05);
-        }
-        ctx.globalAlpha = 1; p1.drawAt(p1x, p1y, 1.05); p2.drawAt(p2x, p2y, 1.05);
-        ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = 'bold 24px Microsoft JhengHei'; ctx.textAlign = 'left'; ctx.fillText(p1.visual.name, 40, canvas.height - 50); ctx.textAlign = 'right'; ctx.fillText(p2.visual.name, canvas.width - 40, 60);
-      }
-      if (openingAnimation.phase === 'impact') {
-        const cx = canvas.width / 2, cy = canvas.height / 2, pulse = 0.8 + Math.sin(openingAnimation.frame * 0.18) * 0.2, flashAlpha = Math.max(0, 1 - openingAnimation.frame / OPENING_IMPACT_FRAMES);
-        p1.drawAt(canvas.width * 0.45, canvas.height * 0.55, 1.08); p2.drawAt(canvas.width * 0.55, canvas.height * 0.45, 1.08);
-        ctx.fillStyle = `rgba(255,255,255,${0.10 * flashAlpha})`; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        drawOpeningFlames(cx, cy, pulse); drawOpeningSlash(cx, cy, pulse);
-        ctx.beginPath(); ctx.arc(cx, cy, 28 + pulse * 10, 0, Math.PI * 2); ctx.fillStyle = `rgba(255,255,255,${0.36 * pulse})`; ctx.fill(); ctx.closePath();
-        ctx.font = 'bold 34px Microsoft JhengHei'; ctx.textAlign = 'center'; ctx.fillStyle = `rgba(255,240,220,${0.92 - openingAnimation.frame / 180})`; ctx.fillText('CLASH', cx, cy + 100);
-      }
-      if (openingAnimation.phase === 'countdown') {
-        const cx = canvas.width / 2, cy = canvas.height / 2; p1.drawAt(canvas.width * 0.30, canvas.height * 0.70, 0.95); p2.drawAt(canvas.width * 0.70, canvas.height * 0.30, 0.95);
-        ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        const localFrame = openingAnimation.frame % 60, scale = 1 + (1 - localFrame / 60) * 0.35, alpha = 0.65 + (1 - localFrame / 60) * 0.35;
-        ctx.save(); ctx.translate(cx, cy); ctx.scale(scale, scale); ctx.textAlign = 'center';
-        if (openingAnimation.countdownValue === 'Game Start') { ctx.font = 'bold 46px Microsoft JhengHei'; ctx.fillStyle = `rgba(255,220,120,${alpha})`; ctx.shadowBlur = 18; ctx.shadowColor = 'rgba(255,180,0,0.9)'; }
-        else { ctx.font = 'bold 78px Microsoft JhengHei'; ctx.fillStyle = `rgba(255,255,255,${alpha})`; ctx.shadowBlur = 20; ctx.shadowColor = 'rgba(255,255,255,0.95)'; }
-        ctx.fillText(String(openingAnimation.countdownValue), 0, 16); ctx.restore();
-      }
-      ctx.restore();
+      OpeningCinematic.draw(ctx, {
+        width: canvas.width, height: canvas.height, frame: openingAnimation.frame,
+        p1, p2, lowPower: LOW_POWER_RENDERING, effectsDisabled: diagnosticEffectsDisabled || REDUCED_MOTION,
+        drawHeroIntro: (ball, frame) => heroCinematics.drawIntro(ctx, ball, frame, canvas.width, canvas.height)
+      });
     }
 
     function drawTimeStopDomain() {
@@ -2835,7 +2790,7 @@
             if (Array.isArray(serverState.jokerCards)) jokerCards = serverState.jokerCards;
 
             if (serverState.opening) {
-              if (openingAnimation.active) updateOpeningAnimation();
+              if (openingAnimation.active) updateOpeningAnimation(serverState.openingFrame);
               const p1Ball = getMainBall('p1'), p2Ball = getMainBall('p2');
               if (p1Ball && serverState.balls[0]) { p1Ball.x = serverState.balls[0].x; p1Ball.y = serverState.balls[0].y; }
               if (p2Ball && serverState.balls[1]) { p2Ball.x = serverState.balls[1].x; p2Ball.y = serverState.balls[1].y; }

@@ -1,6 +1,7 @@
 const express = require("express");
 const Dawn = require('./public/dawn.js');
 const GameConfig = require('./public/game-config.js');
+const OpeningCinematic = require('./public/opening-cinematic.js');
 const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
@@ -947,10 +948,11 @@ setInterval(() => {
   for (const [roomId, room] of rooms.entries()) {
     if (room.phase !== "battle" || !room.gameState) continue;
 
-    if (room.gameState.openingFrames < 240) {
+    if (room.gameState.openingFrames < OpeningCinematic.TIMING.total) {
       room.gameState.openingFrames++;
         io.to(roomId).emit("updateGameState", {
           opening: true,
+          openingFrame: room.gameState.openingFrames,
           balls: room.gameState.balls,
           stats: room.gameState.stats,
           serverTickMs: lastPhysicsTickMs,
