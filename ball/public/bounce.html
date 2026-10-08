@@ -1024,12 +1024,12 @@
 
     const ROLE_VISUALS = {
       dawn: { name: '☀ 守曦者・無晝', desc: '承傷蓄積餘燼，護盾迎擊，黎明反攻', icon: '☀', image: '', defaultImage: '/assets/heroes/dawn.webp', ballStyle: { borderColor: '#e8c67c', borderWidth: 2, innerGradient: ['#f0d399', '#15263c'] }, cardStyle: { borderColor: '#e8c67c', glowColor: 'rgba(232,198,124,.4)', nameColor: '#e8c67c' } },
-      speeder: { name: '⚡ 疾風球', desc: '速度極快，血量統一 2000', icon: '⚡', image: '', defaultImage: '/assets/heroes/speeder.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6b81', '#ff4757'] }, cardStyle: { borderColor: '#62e6ff', glowColor: 'rgba(98, 230, 255, 0.4)', nameColor: '#62e6ff' } },
-      tank: { name: '🛡️ 鐵壁球', desc: '血厚防高，血量統一 2000', icon: '🛡️', image: '', defaultImage: '/assets/heroes/tank.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 3, innerGradient: ['#7bed9f', '#2ed573'] }, cardStyle: { borderColor: '#38e77c', glowColor: 'rgba(56, 231, 124, 0.4)', nameColor: '#38e77c' } },
-      frenzy: { name: '🗡️ 狂暴', desc: '反傷 2%，受擊回能；暴走碰撞回血', icon: '🗡️', image: '', defaultImage: '/assets/heroes/frenzy.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff6666', '#ff3333'] }, cardStyle: { borderColor: '#ff4040', glowColor: 'rgba(255, 64, 64, 0.4)', nameColor: '#ff6262' } },
-      magma: { name: '🌋 熔岩巨獸', desc: '鋪設岩漿、灼燒爆發與火山封鎖', icon: '🌋', image: '', defaultImage: '/assets/heroes/magma.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9f43', '#ee5253'] }, cardStyle: { borderColor: '#ff813d', glowColor: 'rgba(255, 129, 61, 0.4)', nameColor: '#ff9b4a' } },
-      nova: { name: '🃏 鬼牌小丑', desc: '落牌設局，扭轉對手走位', icon: '🃏', image: '', defaultImage: '/assets/heroes/nova.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#facc15', '#a855f7'] }, cardStyle: { borderColor: '#c084fc', glowColor: 'rgba(192, 132, 252, 0.45)', nameColor: '#d8b4fe' } },
-      clone: { name: '👥 影分身', desc: '只有此角色擁有大型飛彈與時間靜止領域', icon: '👥', image: '', defaultImage: '/assets/heroes/clone.webp', ballStyle: { borderColor: '#ffffff', borderWidth: 2, innerGradient: ['#ff9ff3', '#ff6b9d'] }, cardStyle: { borderColor: '#7775ff', glowColor: 'rgba(119, 117, 255, 0.4)', nameColor: '#a5a6ff' } }
+      speeder: { name: '⚡ 疾風球', desc: '速度極快，血量統一 2000', icon: '⚡', image: '', defaultImage: '/assets/heroes/speeder.webp', ballStyle: { borderColor: '#62e6ff', borderWidth: 2, innerGradient: ['#ff6b81', '#ff4757'] }, cardStyle: { borderColor: '#62e6ff', glowColor: 'rgba(98, 230, 255, 0.4)', nameColor: '#62e6ff' } },
+      tank: { name: '🛡️ 鐵壁球', desc: '血厚防高，血量統一 2000', icon: '🛡️', image: '', defaultImage: '/assets/heroes/tank.webp', ballStyle: { borderColor: '#38e77c', borderWidth: 3, innerGradient: ['#7bed9f', '#2ed573'] }, cardStyle: { borderColor: '#38e77c', glowColor: 'rgba(56, 231, 124, 0.4)', nameColor: '#38e77c' } },
+      frenzy: { name: '🗡️ 狂暴', desc: '反傷 2%，受擊回能；暴走碰撞回血', icon: '🗡️', image: '', defaultImage: '/assets/heroes/frenzy.webp', ballStyle: { borderColor: '#ef4b43', borderWidth: 2, innerGradient: ['#ff6666', '#ff3333'] }, cardStyle: { borderColor: '#ff4040', glowColor: 'rgba(255, 64, 64, 0.4)', nameColor: '#ff6262' } },
+      magma: { name: '🌋 熔岩巨獸', desc: '鋪設岩漿、灼燒爆發與火山封鎖', icon: '🌋', image: '', defaultImage: '/assets/heroes/magma.webp', ballStyle: { borderColor: '#ff813d', borderWidth: 2, innerGradient: ['#ff9f43', '#ee5253'] }, cardStyle: { borderColor: '#ff813d', glowColor: 'rgba(255, 129, 61, 0.4)', nameColor: '#ff9b4a' } },
+      nova: { name: '🃏 鬼牌小丑', desc: '落牌設局，扭轉對手走位', icon: '🃏', image: '', defaultImage: '/assets/heroes/nova.webp', ballStyle: { borderColor: '#c084fc', borderWidth: 2, innerGradient: ['#facc15', '#a855f7'] }, cardStyle: { borderColor: '#c084fc', glowColor: 'rgba(192, 132, 252, 0.45)', nameColor: '#d8b4fe' } },
+      clone: { name: '👥 影分身', desc: '只有此角色擁有大型飛彈與時間靜止領域', icon: '👥', image: '', defaultImage: '/assets/heroes/clone.webp', ballStyle: { borderColor: '#9998ff', borderWidth: 2, innerGradient: ['#ff9ff3', '#ff6b9d'] }, cardStyle: { borderColor: '#7775ff', glowColor: 'rgba(119, 117, 255, 0.4)', nameColor: '#a5a6ff' } }
     };
     function getRoleImage(visual) { return visual?.image || visual?.defaultImage || ''; }
     const BASE_RADIUS = GameConfig.roles.speeder.radius;
@@ -1541,7 +1541,7 @@
         this.baseSpeed = roleData.speed;
         this.visual = ROLE_VISUALS[roleData.id]; this.hp = options.hp !== undefined ? options.hp : roleData.hp; this.maxHp = options.maxHp !== undefined ? options.maxHp : roleData.hp;
         this.usesCustomImage = Boolean(options.imageData || this.visual.image);
-        this.frenzyVisualBlend = 0;
+        this.frenzyVisualBlend = 0; this.frenzyAwakenedLook = false;
         this.radius = options.radius || roleData.radius; this.playerTag = playerTag; this.roleId = roleData.id; this.skill = options.skill !== undefined ? options.skill : roleData.skill;
         this.energy = 0; this.maxEnergy = MAX_ENERGY; this.missileCooldown = 0; this.bigMissileCooldown = 0;
         this.isClone = options.isClone || false; this.parentId = options.parentId || null; this.lifeFrames = options.lifeFrames || null; this.isDead = false;
@@ -1560,7 +1560,7 @@
         const dawnAwakened = this.roleId === 'dawn' && !this.isClone && this.dawnUlt > 0;
         const img = dawnAwakened ? heroCinematics.getDawnImage(this.ballImageObj) : this.ballImageObj;
         const rageImg = this.roleId === 'frenzy' && !this.isClone ? heroCinematics.getFrenzyAwakenedImage(this) : null;
-        const rageBlend = rageImg ? Math.max(0, Math.min(1, this.frenzyVisualBlend || 0)) : 0;
+        const rageBlend = this.roleId === 'frenzy' && !this.isClone ? Math.max(0, Math.min(1, this.frenzyVisualBlend || 0)) : 0;
         const hasImage = img && isImageReady(img); const drawRadius = this.radius * scale;
         ctx.save(); ctx.globalAlpha = alpha;
         if (hasImage) {
@@ -1580,33 +1580,30 @@
             ctx.fillRect(x - drawRadius, y - drawRadius, drawRadius * 2, drawRadius * 2);
             ctx.restore();
           }
-          if (rageBlend < 1) {
-            ctx.globalAlpha = alpha * (1 - rageBlend);
+          if (rageBlend < 1 || !rageImg) {
+            ctx.globalAlpha = alpha * (rageImg ? 1 - rageBlend : 1);
             ctx.drawImage(img, x - portraitRadius, y - portraitRadius, portraitRadius * 2, portraitRadius * 2);
           }
-          if (rageBlend > 0) {
+          if (rageBlend > 0 && rageImg) {
             ctx.save();
-            ctx.beginPath(); ctx.arc(x, y, drawRadius * (1 - rageBlend * 0.24), 0, Math.PI * 2); ctx.clip();
+            ctx.beginPath(); ctx.arc(x, y, drawRadius * (1 - rageBlend * 0.45), 0, Math.PI * 2); ctx.clip();
             ctx.globalAlpha = alpha * rageBlend;
             ctx.drawImage(rageImg, x - portraitRadius, y - portraitRadius, portraitRadius * 2, portraitRadius * 2);
             ctx.restore();
           }
           ctx.restore();
-          ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); ctx.strokeStyle = this.heavyInjury ? '#ff0000' : style.borderColor; ctx.lineWidth = this.isClone ? style.borderWidth * 0.75 : style.borderWidth; ctx.stroke(); ctx.closePath();
-          if (rageBlend > 0 && !diagnosticEffectsDisabled) heroCinematics.drawFrenzyArmorPlates(ctx, img, x, y, drawRadius, rageBlend);
+          if (rageBlend > 0 && rageImg && !diagnosticEffectsDisabled) heroCinematics.drawFrenzyArmorPlates(ctx, img, x, y, drawRadius, rageBlend);
         } else {
-          ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); const grad = ctx.createRadialGradient(x - drawRadius * 0.3, y - drawRadius * 0.3, drawRadius * 0.1, x, y, drawRadius); grad.addColorStop(0, style.innerGradient[0]); grad.addColorStop(1, style.innerGradient[1]); ctx.fillStyle = grad; ctx.fill(); ctx.strokeStyle = this.heavyInjury ? '#ff0000' : style.borderColor; ctx.lineWidth = this.isClone ? style.borderWidth * 0.75 : style.borderWidth; ctx.stroke(); ctx.closePath();
+          ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); const grad = ctx.createRadialGradient(x - drawRadius * 0.3, y - drawRadius * 0.3, drawRadius * 0.1, x, y, drawRadius); grad.addColorStop(0, style.innerGradient[0]); grad.addColorStop(1, style.innerGradient[1]); ctx.fillStyle = grad; ctx.fill(); ctx.closePath();
           drawRoleDecoration(this, x, y, drawRadius);
           ctx.beginPath(); ctx.arc(x - drawRadius * 0.25, y - drawRadius * 0.25, drawRadius * 0.25, 0, Math.PI * 2); ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.25})`; ctx.fill(); ctx.closePath();
         }
+        drawRoleFrame(this, x, y, drawRadius);
         if (this.roleId === 'dawn' && !this.isClone) drawDawnStateVisual(this, x, y, drawRadius);
         ctx.restore();
       }
       draw() {
         if (!this.isClone) drawRoleTrail(this);
-        if (this.roleId === 'frenzy' && !this.isClone && this.ultimateTimer > 0) {
-          const pulse = Math.sin(gameFrame * 0.2) * 0.3 + 0.7; ctx.beginPath(); ctx.arc(this.x, this.y, this.radius + 10, 0, Math.PI * 2); ctx.strokeStyle = `rgba(255, 215, 0, ${pulse})`; ctx.lineWidth = 4; ctx.stroke(); ctx.closePath(); ctx.beginPath(); ctx.arc(this.x, this.y, this.radius + 5, 0, Math.PI * 2); ctx.fillStyle = `rgba(255, 215, 0, ${pulse * 0.15})`; ctx.fill(); ctx.closePath();
-        }
         if (this.heavyInjury && !this.isClone) {
           const pulse = Math.sin(gameFrame * 0.15) * 0.3 + 0.7; ctx.beginPath(); ctx.arc(this.x, this.y, this.radius + 6, 0, Math.PI * 2); ctx.fillStyle = `rgba(255, 0, 0, ${pulse * 0.22})`; ctx.fill(); ctx.closePath(); ctx.beginPath(); ctx.arc(this.x, this.y, this.radius + 3, 0, Math.PI * 2); ctx.strokeStyle = `rgba(255, 0, 0, ${pulse * 0.8})`; ctx.lineWidth = 2; ctx.stroke(); ctx.closePath();
         }
@@ -1619,6 +1616,57 @@
 
     function setBallSpeedByCurrentDirection(ball, speed) {
       const dir = Math.atan2(ball.vy, ball.vx); ball.baseSpeed = speed; ball.vx = Math.cos(dir) * speed; ball.vy = Math.sin(dir) * speed;
+    }
+
+    const ROLE_FRAME_SETTINGS = {
+      dawn: [3, 0.72, 2, 2], speeder: [3, 0.64, 4, 2.5],
+      frenzy: [4, 0.48, 3, 2.5], frenzyActive: [4, 0.68, 6, 4],
+      magma: [5, 0.64, 3, 3.5], nova: [4, 0.78, 3, 2.5],
+      clone: [2, 1.15, 3, 2.5]
+    };
+
+    function drawRoleFrame(ball, x, y, radius) {
+      const role = ball.roleId;
+      const activeFrenzy = role === 'frenzy' && ball.ultimateTimer > 0;
+      const color = ball.heavyInjury ? '#ff364a' : (activeFrenzy ? '#ff8a44' : ball.visual.ballStyle.borderColor);
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = color;
+      ctx.globalAlpha *= ball.isClone ? 0.48 : 0.72;
+
+      if (role === 'tank') {
+        // 六片互不相連的護甲邊，刻意不用所有角色共用的圓框。
+        ctx.lineWidth = Math.max(2, radius * 0.028);
+        for (let i = 0; i < 6; i++) {
+          const a = -Math.PI / 2 + i * Math.PI / 3;
+          const b = a + Math.PI / 3;
+          const inset = 0.07;
+          ctx.beginPath();
+          ctx.moveTo(x + Math.cos(a + inset) * (radius + 2), y + Math.sin(a + inset) * (radius + 2));
+          ctx.lineTo(x + Math.cos(b - inset) * (radius + 2), y + Math.sin(b - inset) * (radius + 2));
+          ctx.stroke();
+        }
+      } else {
+        const settings = ROLE_FRAME_SETTINGS[activeFrenzy ? 'frenzyActive' : role] || ROLE_FRAME_SETTINGS.dawn;
+        const [count, arcLength, offset, width] = settings;
+        ctx.lineWidth = width;
+        for (let i = 0; i < count; i++) {
+          const angle = -Math.PI / 2 + i * Math.PI * 2 / count;
+          if (role === 'nova' && i % 2) ctx.strokeStyle = '#f5c96f';
+          else ctx.strokeStyle = color;
+          ctx.beginPath(); ctx.arc(x, y, radius + offset, angle, angle + arcLength); ctx.stroke();
+        }
+        if (role === 'clone' || (role === 'frenzy' && ball.frenzyAwakenedLook)) {
+          ctx.globalAlpha *= 0.55;
+          ctx.lineWidth = 1.5;
+          const outerRadius = radius + (role === 'clone' ? 9 : 12);
+          for (let i = 0; i < 2; i++) {
+            const angle = i * Math.PI + Math.PI / 4;
+            ctx.beginPath(); ctx.arc(x, y, outerRadius, angle, angle + 0.58); ctx.stroke();
+          }
+        }
+      }
+      ctx.restore();
     }
 
     // 餘燼是三段式資源：每 40 點點亮一道環。視覺與面板都使用這個單一來源，避免數字和效果互相矛盾。
@@ -2054,6 +2102,7 @@
       const wasActive = ball.isUltimateActive && ball.ultimateTimer > 0;
       ball.ultimateTimer = FRENZY_ULTIMATE_DURATION;
       ball.isUltimateActive = true;
+      ball.frenzyAwakenedLook = true;
       applyFrenzyUltimateSpeed(ball);
       if (!wasActive) heroCinematics.playFrenzy(ball);
     }
@@ -2619,19 +2668,10 @@
           }
           const renderedPosition = getRenderedBallPosition(ball);
           if (ball.roleId === 'frenzy' && !ball.isClone) {
-            const blendStep = Math.min(1, deltaTime / 180);
-            ball.frenzyVisualBlend = ball.ultimateTimer > 0
-              ? Math.min(1, ball.frenzyVisualBlend + blendStep)
-              : Math.max(0, ball.frenzyVisualBlend - blendStep);
-          }
-          if (ball.roleId === 'frenzy' && !ball.isClone && ball.ultimateTimer > 0) {
-            const pulse = Math.sin(gameFrame * 0.2) * 0.3 + 0.7;
-            ctx.save();
-            ctx.beginPath(); ctx.arc(renderedPosition.x, renderedPosition.y, ball.radius + 10, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(255, 215, 0, ${pulse})`; ctx.lineWidth = 4; ctx.stroke();
-            ctx.beginPath(); ctx.arc(renderedPosition.x, renderedPosition.y, ball.radius + 5, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255, 215, 0, ${pulse * 0.15})`; ctx.fill();
-            ctx.restore();
+            const visualTarget = heroCinematics.getFrenzyVisualTarget(ball);
+            const blendStep = Math.min(1, deltaTime / 240);
+            ball.frenzyVisualBlend += Math.sign(visualTarget - ball.frenzyVisualBlend)
+              * Math.min(blendStep, Math.abs(visualTarget - ball.frenzyVisualBlend));
           }
           ball.drawAt(renderedPosition.x, renderedPosition.y, 1, alpha);
         }
@@ -2855,7 +2895,8 @@
               // 伺服器狀態作為大招事件的備援，避免剛好漏掉即時事件時大招被吃掉。
               const serverUltimateNonce = Number(serverBall.ultimateNonce) || 0;
               if (serverBall.role === 'frenzy' && serverUltimateNonce > (localBall.serverUltimateNonce || 0)) {
-                triggerFrenzyUltimate(localBall);
+                localBall.frenzyAwakenedLook = true;
+                if (Number(serverBall.frenzyUltimateTimer) > 0) triggerFrenzyUltimate(localBall);
               }
               if (serverBall.role === 'frenzy') {
                 localBall.ultimateTimer = Math.max(0, Number(serverBall.frenzyUltimateTimer) || 0);

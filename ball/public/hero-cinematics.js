@@ -45,9 +45,13 @@
       return this.frenzyAwakened?.complete && this.frenzyAwakened.naturalWidth > 0 ? this.frenzyAwakened : null;
     }
 
+    getFrenzyVisualTarget(ball) {
+      return ball?.ultimateTimer > 0 ? 1 : (ball?.frenzyAwakenedLook ? 0.55 : 0);
+    }
+
     drawFrenzyArmorPlates(ctx, image, x, y, radius, blend) {
       if (!image?.complete || !image.naturalWidth || blend <= 0.02) return;
-      const opening = easeOut(blend);
+      const opening = blend * blend * (3 - 2 * blend);
       const halfArc = Math.PI / 4 - opening * 0.025;
       const innerRadius = radius * 0.52;
       const outerRadius = radius * 1.05;
@@ -101,7 +105,7 @@
       }
       if (awakened) {
         ctx.save();
-        ctx.beginPath(); ctx.arc(x, cy, size / 2 * (1 - awakening * .24), 0, Math.PI * 2); ctx.clip();
+        ctx.beginPath(); ctx.arc(x, cy, size / 2 * (1 - awakening * .45), 0, Math.PI * 2); ctx.clip();
         ctx.globalAlpha = fade * awakening;
         ctx.drawImage(awakened, x - size / 2, cy - size / 2, size, size);
         ctx.restore();

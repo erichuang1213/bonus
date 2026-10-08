@@ -53,4 +53,20 @@ test('Frenzy armor stays closed at rest and draws four moving plates during ulti
   assert.equal(calls.filter(call => call === 'drawImage').length, 4);
   assert.equal(calls.filter(call => Array.isArray(call) && call[0] === 'translate').length, 4);
   assert.ok(calls.some(call => Array.isArray(call) && call[0] === 'translate' && call[1] !== 100 && call[2] !== 100));
+  const fullOffset = Math.hypot(calls[2][1] - 100, calls[2][2] - 100);
+  calls.length = 0;
+  cinematics.drawFrenzyArmorPlates(ctx, image, 100, 100, 50, 0.55);
+  const halfOpenOffset = Math.hypot(calls[2][1] - 100, calls[2][2] - 100);
+  assert.ok(halfOpenOffset > 0 && halfOpenOffset < fullOffset);
+});
+
+test('Frenzy keeps a distinct half-open look after the ultimate ends', () => {
+  const cinematics = new HeroCinematics();
+  const ball = { ultimateTimer: 0, frenzyAwakenedLook: false };
+  assert.equal(cinematics.getFrenzyVisualTarget(ball), 0);
+  ball.ultimateTimer = 120;
+  ball.frenzyAwakenedLook = true;
+  assert.equal(cinematics.getFrenzyVisualTarget(ball), 1);
+  ball.ultimateTimer = 0;
+  assert.equal(cinematics.getFrenzyVisualTarget(ball), 0.55);
 });
