@@ -1053,7 +1053,7 @@
             const thumb = document.getElementById(`thumb-${roleId}`);
             if (thumb) { thumb.src = dataUrl; thumb.style.display = 'inline'; }
             updateCarousel(); updateSidePanels();
-            balls.forEach(b => { if (b.roleId === roleId) b.ballImageObj = loadImage(getRoleImage(b.visual)); });
+            balls.forEach(b => { if (b.roleId === roleId) { b.ballImageObj = loadImage(getRoleImage(b.visual)); b.usesCustomImage = true; } });
           };
           reader.readAsDataURL(file);
         });
@@ -1064,7 +1064,7 @@
           const thumb = document.getElementById(`thumb-${roleId}`);
           if (thumb) { thumb.src = ''; thumb.style.display = 'none'; }
           updateCarousel(); updateSidePanels();
-          balls.forEach(b => { if (b.roleId === roleId) b.ballImageObj = loadImage(getRoleImage(b.visual)); });
+          balls.forEach(b => { if (b.roleId === roleId) { b.ballImageObj = loadImage(getRoleImage(b.visual)); b.usesCustomImage = false; } });
         });
       });
     }
@@ -1540,6 +1540,8 @@
         // speed 是速度大小，不是 x 軸速度；斜向初速必須正規化後再套入。
         this.baseSpeed = roleData.speed;
         this.visual = ROLE_VISUALS[roleData.id]; this.hp = options.hp !== undefined ? options.hp : roleData.hp; this.maxHp = options.maxHp !== undefined ? options.maxHp : roleData.hp;
+        this.usesCustomImage = Boolean(options.imageData || this.visual.image);
+        this.frenzyVisualBlend = 0;
         this.radius = options.radius || roleData.radius; this.playerTag = playerTag; this.roleId = roleData.id; this.skill = options.skill !== undefined ? options.skill : roleData.skill;
         this.energy = 0; this.maxEnergy = MAX_ENERGY; this.missileCooldown = 0; this.bigMissileCooldown = 0;
         this.isClone = options.isClone || false; this.parentId = options.parentId || null; this.lifeFrames = options.lifeFrames || null; this.isDead = false;
@@ -1557,6 +1559,8 @@
         const style = this.visual.ballStyle; const alpha = alphaOverride !== null ? alphaOverride : (this.isClone ? 0.65 : 1);
         const dawnAwakened = this.roleId === 'dawn' && !this.isClone && this.dawnUlt > 0;
         const img = dawnAwakened ? heroCinematics.getDawnImage(this.ballImageObj) : this.ballImageObj;
+        const rageImg = this.roleId === 'frenzy' && !this.isClone ? heroCinematics.getFrenzyAwakenedImage(this) : null;
+        const rageBlend = rageImg ? Math.max(0, Math.min(1, this.frenzyVisualBlend || 0)) : 0;
         const hasImage = img && isImageReady(img); const drawRadius = this.radius * scale;
         ctx.save(); ctx.globalAlpha = alpha;
         if (hasImage) {
@@ -1565,7 +1569,14 @@
           ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); ctx.clip();
           const portraitPulse = dawnAwakened ? 1.08 + Math.sin(gameFrame * 0.22) * 0.025 : 1;
           const portraitRadius = drawRadius * portraitPulse;
-          ctx.drawImage(img, x - portraitRadius, y - portraitRadius, portraitRadius * 2, portraitRadius * 2);
+          if (rageBlend < 1) {
+            ctx.globalAlpha = alpha * (1 - rageBlend);
+            ctx.drawImage(img, x - portraitRadius, y - portraitRadius, portraitRadius * 2, portraitRadius * 2);
+          }
+          if (rageBlend > 0) {
+            ctx.globalAlpha = alpha * rageBlend;
+            ctx.drawImage(rageImg, x - portraitRadius, y - portraitRadius, portraitRadius * 2, portraitRadius * 2);
+          }
           ctx.restore();
           ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); ctx.strokeStyle = this.heavyInjury ? '#ff0000' : style.borderColor; ctx.lineWidth = this.isClone ? style.borderWidth * 0.75 : style.borderWidth; ctx.stroke(); ctx.closePath();
         } else {
@@ -2025,9 +2036,11 @@
     }
 
     function triggerFrenzyUltimate(ball) {
+      const wasActive = ball.isUltimateActive && ball.ultimateTimer > 0;
       ball.ultimateTimer = FRENZY_ULTIMATE_DURATION;
       ball.isUltimateActive = true;
       applyFrenzyUltimateSpeed(ball);
+      if (!wasActive) heroCinematics.playFrenzy(ball);
     }
 
     function triggerMagmaUltimate(ball) {
@@ -2351,18 +2364,19 @@
     }
 
     function drawSwordWeapon(cx, cy, angle, progress, alpha) {
-      const swordLen = 140, handleLen = 20, guardHalf = 11, bladeWidth = 14, trailOuter = 110, trailInner = 50, swingSpread = 0.62; ctx.save(); ctx.translate(cx, cy); ctx.rotate(angle);
-      ctx.globalAlpha = alpha * (0.55 + progress * 0.35);
-      const trailGrad = ctx.createRadialGradient(0, 0, 6, 18, 0, trailOuter + 10);
-      trailGrad.addColorStop(0, 'rgba(255,255,230,0.85)'); trailGrad.addColorStop(0.35, 'rgba(255,210,70,0.55)'); trailGrad.addColorStop(0.75, 'rgba(255,120,0,0.28)'); trailGrad.addColorStop(1, 'rgba(255,120,0,0)');
-      ctx.fillStyle = trailGrad; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, trailOuter, -swingSpread, swingSpread); ctx.arc(0, 0, trailInner, swingSpread, -swingSpread, true); ctx.closePath(); ctx.fill();
-      ctx.globalAlpha = alpha * 0.85; ctx.strokeStyle = 'rgba(255,210,100,0.85)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 44, -swingSpread * 0.9, swingSpread * 0.9); ctx.stroke();
-      ctx.globalAlpha = alpha; ctx.fillStyle = '#5a2d00'; ctx.fillRect(-handleLen, -4, handleLen, 8); ctx.fillStyle = '#d9a441'; ctx.fillRect(-handleLen - 6, -2.5, 6, 5);
-      ctx.fillStyle = '#f2c14f'; ctx.beginPath(); ctx.moveTo(-2, -guardHalf); ctx.lineTo(9, -4); ctx.lineTo(9, 4); ctx.lineTo(-2, guardHalf); ctx.closePath(); ctx.fill();
-      const bladeGrad = ctx.createLinearGradient(0, -bladeWidth, swordLen, bladeWidth); bladeGrad.addColorStop(0, '#fff6dc'); bladeGrad.addColorStop(0.35, '#ffffff'); bladeGrad.addColorStop(0.7, '#e7eefc'); bladeGrad.addColorStop(1, '#d5dff2');
-      ctx.fillStyle = bladeGrad; ctx.beginPath(); ctx.moveTo(0, -bladeWidth); ctx.lineTo(swordLen - 10, -bladeWidth * 0.72); ctx.lineTo(swordLen, 0); ctx.lineTo(swordLen - 10, bladeWidth * 0.72); ctx.lineTo(0, bladeWidth); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.2; ctx.stroke(); ctx.strokeStyle = 'rgba(180,205,255,0.8)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(5, 0); ctx.lineTo(swordLen - 12, 0); ctx.stroke();
+      ctx.save(); ctx.globalAlpha = alpha * .72;
+      ctx.beginPath(); ctx.arc(cx, cy, 160, angle - .62, angle + .62);
+      ctx.strokeStyle = '#ff4c3b'; ctx.lineWidth = 12 * (1 - progress * .55); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy, 169, angle - .50, angle + .50);
+      ctx.strokeStyle = '#ffd0a2'; ctx.lineWidth = 3; ctx.stroke();
       ctx.restore();
+      const gripX = cx + Math.cos(angle) * 42, gripY = cy + Math.sin(angle) * 42;
+      if (!heroCinematics.drawFrenzySword(ctx, gripX, gripY, angle, 166, alpha)) {
+        ctx.save(); ctx.globalAlpha = alpha; ctx.translate(gripX, gripY); ctx.rotate(angle);
+        ctx.fillStyle = '#381e21'; ctx.fillRect(-22, -5, 30, 10);
+        ctx.fillStyle = '#ff6052'; ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(152, 0); ctx.lineTo(0, 12); ctx.fill();
+        ctx.restore();
+      }
     }
 
     function update() {
@@ -2590,6 +2604,12 @@
             alpha = fade * 0.9;
           }
           const renderedPosition = getRenderedBallPosition(ball);
+          if (ball.roleId === 'frenzy' && !ball.isClone) {
+            const blendStep = Math.min(1, deltaTime / 180);
+            ball.frenzyVisualBlend = ball.ultimateTimer > 0
+              ? Math.min(1, ball.frenzyVisualBlend + blendStep)
+              : Math.max(0, ball.frenzyVisualBlend - blendStep);
+          }
           if (ball.roleId === 'frenzy' && !ball.isClone && ball.ultimateTimer > 0) {
             const pulse = Math.sin(gameFrame * 0.2) * 0.3 + 0.7;
             ctx.save();
@@ -2600,6 +2620,12 @@
             ctx.restore();
           }
           ball.drawAt(renderedPosition.x, renderedPosition.y, 1, alpha);
+          if (ball.roleId === 'frenzy' && !ball.isClone && !diagnosticEffectsDisabled && !swordFlashEffects.some(effect => effect.ownerTag === ball.playerTag)) {
+            const opponent = getMainBall(ball.playerTag === 'p1' ? 'p2' : 'p1');
+            const target = opponent ? getRenderedBallPosition(opponent) : null;
+            const targetAngle = target ? Math.atan2(target.y - renderedPosition.y, target.x - renderedPosition.x) : 0;
+            heroCinematics.drawFrenzyIdle(ctx, renderedPosition.x, renderedPosition.y, ball.radius, targetAngle, currentTime, ball.frenzyVisualBlend, LOW_POWER_RENDERING);
+          }
         }
         for (let p of projectiles) p.draw();
 
@@ -2611,7 +2637,8 @@
           }
           if (ef.life <= 0) { swordFlashEffects.splice(i, 1); continue; }
           const ownerBall = getMainBall(ef.ownerTag); if (!ownerBall) { swordFlashEffects.splice(i, 1); continue; }
-          const cx = ownerBall.x, cy = ownerBall.y, alpha = Math.max(0, ef.life / 12), swingOffset = (ef.swingPhase - 0.5) * (Math.PI / 2.3), drawAngle = ef.angle + swingOffset;
+          const ownerPosition = getRenderedBallPosition(ownerBall);
+          const cx = ownerPosition.x, cy = ownerPosition.y, alpha = Math.max(0, ef.life / 12), swingOffset = (ef.swingPhase - 0.5) * (Math.PI / 2.3), drawAngle = ef.angle + swingOffset;
           drawSwordWeapon(cx, cy, drawAngle, ef.swingPhase, alpha);
         }
         drawTimeStopDomain();
@@ -2669,6 +2696,7 @@
 
       // 🟢 4. 重新建立玩家球體
       const role1 = ROLES.find(r => r.id === p1Choice), role2 = ROLES.find(r => r.id === p2Choice);
+      heroCinematics.prepare([p1Choice, p2Choice]);
       const selectedImage = (side) => ONLINE_MODE
         ? (onlineRoomData?.players || []).find(p => p.side === side)?.imageData || ''
         : '';
@@ -2755,7 +2783,7 @@
     document.getElementById('btnThemeToggle').addEventListener('click', () => { themeEditor.style.display = themeEditor.style.display === 'block' ? 'none' : 'block'; if (themeEditor.style.display === 'block') imageEditor.style.display = 'none'; });
     document.getElementById('btnImageToggle').addEventListener('click', () => { imageEditor.style.display = imageEditor.style.display === 'block' ? 'none' : 'block'; if (imageEditor.style.display === 'block') themeEditor.style.display = 'none'; });
     document.getElementById('btnCloseImage').addEventListener('click', () => { imageEditor.style.display = 'none'; });
-    document.getElementById('btnClearAllImages').addEventListener('click', () => { ROLES.forEach(r => { ROLE_VISUALS[r.id].image = ''; }); buildImageManager(); updateCarousel(); updateSidePanels(); balls.forEach(b => { b.ballImageObj = loadImage(getRoleImage(b.visual)); }); });
+    document.getElementById('btnClearAllImages').addEventListener('click', () => { ROLES.forEach(r => { ROLE_VISUALS[r.id].image = ''; }); buildImageManager(); updateCarousel(); updateSidePanels(); balls.forEach(b => { b.ballImageObj = loadImage(getRoleImage(b.visual)); b.usesCustomImage = false; }); });
 
     document.getElementById('btnApplyTheme').addEventListener('click', () => {
       currentTheme = { bgColor: document.getElementById('bgColor').value, accentColor: document.getElementById('accentColor').value, btnPrimary: document.getElementById('btnPrimary').value, btnPrimaryHover: document.getElementById('btnPrimary').value, cardBg: document.getElementById('cardBg').value, cardBorder: document.getElementById('cardBorder').value, textColor: document.getElementById('textColor').value, descColor: document.getElementById('descColor').value, statsColor: document.getElementById('descColor').value, hpBarBg: '#0f3460', hpBarBorder: '#333333', hpRedStart: document.getElementById('hpRedStart').value, hpRedEnd: document.getElementById('hpRedEnd').value, hpBlueStart: document.getElementById('hpBlueStart').value, hpBlueEnd: document.getElementById('hpBlueEnd').value, energyBarBg: '#1a1a2e', energyBarBorder: '#444444', energyStart: document.getElementById('energyStart').value, energyEnd: document.getElementById('energyEnd').value, energyFullStart: document.getElementById('energyFullStart').value, energyFullEnd: document.getElementById('energyFullEnd').value, canvasBg: document.getElementById('cardBg').value, roleDisplayBg: document.getElementById('cardBorder').value, roleDisplayBorder: document.getElementById('cardBorder').value, gridColor: document.getElementById('cardBorder').value };
