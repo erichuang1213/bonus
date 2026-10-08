@@ -1,7 +1,6 @@
 (function (root) {
   const DURATION_MS = 1100;
   const DAWN_CINEMATIC_IMAGE = '/assets/heroes/dawn-cinematic.webp';
-  const FRENZY_BLADE_IMAGE = '/assets/heroes/frenzy-blade.webp';
   const FRENZY_AWAKENED_IMAGE = '/assets/heroes/frenzy-awakened.webp';
 
   function clamp01(value) { return Math.max(0, Math.min(1, value)); }
@@ -13,15 +12,13 @@
       this.queue = [];
       this.dawnImage = new Image();
       this.dawnImage.src = DAWN_CINEMATIC_IMAGE;
-      this.frenzyBlade = null;
       this.frenzyAwakened = null;
     }
 
     reset() { this.active = null; this.queue.length = 0; }
 
     prepare(roleIds) {
-      if (!roleIds.includes('frenzy') || this.frenzyBlade) return;
-      this.frenzyBlade = new Image(); this.frenzyBlade.src = FRENZY_BLADE_IMAGE;
+      if (!roleIds.includes('frenzy') || this.frenzyAwakened) return;
       this.frenzyAwakened = new Image(); this.frenzyAwakened.src = FRENZY_AWAKENED_IMAGE;
     }
 
@@ -48,25 +45,31 @@
       return this.frenzyAwakened?.complete && this.frenzyAwakened.naturalWidth > 0 ? this.frenzyAwakened : null;
     }
 
-    drawFrenzySword(ctx, gripX, gripY, angle, size, alpha = 1) {
-      const image = this.frenzyBlade;
-      if (!image?.complete || !image.naturalWidth) return false;
+    drawFrenzyArmorPlates(ctx, image, x, y, radius, blend) {
+      if (!image?.complete || !image.naturalWidth || blend <= 0.02) return;
+      const opening = easeOut(blend);
+      const halfArc = Math.PI / 4 - opening * 0.025;
+      const innerRadius = radius * 0.52;
+      const outerRadius = radius * 1.05;
       ctx.save();
-      ctx.translate(gripX, gripY);
-      // 武器素材的握柄位於左下、刀尖位於右上；讓握柄成為真正的旋轉軸。
-      ctx.rotate(angle + Math.PI / 4);
-      ctx.globalAlpha *= alpha;
-      ctx.drawImage(image, -size * .1, -size * .9, size, size);
+      ctx.globalAlpha *= Math.min(1, blend * 4);
+      for (let i = 0; i < 4; i++) {
+        // 原圖外圈分成四片；各片連同角上的尖刺一起移開，中央露出暴走核心。
+        const angle = -Math.PI * 3 / 4 + i * Math.PI / 2;
+        const offset = radius * 0.32 * opening;
+        const direction = i % 2 === 0 ? -1 : 1;
+        ctx.save();
+        ctx.translate(x + Math.cos(angle) * offset, y + Math.sin(angle) * offset);
+        ctx.rotate(direction * 0.065 * opening);
+        ctx.beginPath();
+        ctx.arc(0, 0, outerRadius, angle - halfArc, angle + halfArc);
+        ctx.arc(0, 0, innerRadius, angle + halfArc, angle - halfArc, true);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(image, -radius, -radius, radius * 2, radius * 2);
+        ctx.restore();
+      }
       ctx.restore();
-      return true;
-    }
-
-    drawFrenzyIdle(ctx, x, y, radius, targetAngle, now, rageBlend, lowPower) {
-      if (!this.frenzyBlade?.complete || !this.frenzyBlade.naturalWidth) return;
-      const sway = Math.sin(now * .0036) * (lowPower ? .06 : .11);
-      const angle = targetAngle + sway;
-      const reach = radius * (.43 + Math.sin(now * .004) * .035);
-      this.drawFrenzySword(ctx, x + Math.cos(angle) * reach, y + Math.sin(angle) * reach, angle, radius * (rageBlend > .5 ? 1.55 : 1.39));
     }
 
     drawFrenzyCinematic(ctx, width, height, age, item, lowPower) {
@@ -97,16 +100,19 @@
         ctx.drawImage(base, x - size / 2, cy - size / 2, size, size);
       }
       if (awakened) {
+        ctx.save();
+        ctx.beginPath(); ctx.arc(x, cy, size / 2 * (1 - awakening * .24), 0, Math.PI * 2); ctx.clip();
         ctx.globalAlpha = fade * awakening;
         ctx.drawImage(awakened, x - size / 2, cy - size / 2, size, size);
+        ctx.restore();
       }
       ctx.globalAlpha = fade;
-      this.drawFrenzySword(ctx, width * .40, height * .82, -.86 + enter * .2, width * .56, Math.min(1, awakening + .15));
+      if (awakened) this.drawFrenzyArmorPlates(ctx, base, x, cy, size / 2, awakening);
       ctx.textAlign = 'left';
       ctx.fillStyle = '#ffb0a4'; ctx.font = `bold ${Math.round(width * .026)}px Microsoft JhengHei, sans-serif`;
       ctx.fillText('狂暴', width * .07, height * .70);
       ctx.fillStyle = '#fff1e8'; ctx.font = `900 ${Math.round(width * .085)}px Microsoft JhengHei, sans-serif`;
-      ctx.fillText('暴走覺醒', width * .07, height * .80);
+      ctx.fillText('外甲展開', width * .07, height * .80);
       ctx.fillStyle = '#ff433b'; ctx.fillRect(width * .07, height * .82, width * .34 * enter, 4);
       ctx.restore();
     }

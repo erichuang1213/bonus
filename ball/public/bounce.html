@@ -1569,16 +1569,31 @@
           ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); ctx.clip();
           const portraitPulse = dawnAwakened ? 1.08 + Math.sin(gameFrame * 0.22) * 0.025 : 1;
           const portraitRadius = drawRadius * portraitPulse;
+          if (rageBlend > 0) {
+            ctx.save();
+            ctx.globalAlpha = alpha * rageBlend;
+            const coreGlow = ctx.createRadialGradient(x, y, drawRadius * 0.15, x, y, drawRadius);
+            coreGlow.addColorStop(0, '#ff672e');
+            coreGlow.addColorStop(0.55, '#9c100f');
+            coreGlow.addColorStop(1, '#240609');
+            ctx.fillStyle = coreGlow;
+            ctx.fillRect(x - drawRadius, y - drawRadius, drawRadius * 2, drawRadius * 2);
+            ctx.restore();
+          }
           if (rageBlend < 1) {
             ctx.globalAlpha = alpha * (1 - rageBlend);
             ctx.drawImage(img, x - portraitRadius, y - portraitRadius, portraitRadius * 2, portraitRadius * 2);
           }
           if (rageBlend > 0) {
+            ctx.save();
+            ctx.beginPath(); ctx.arc(x, y, drawRadius * (1 - rageBlend * 0.24), 0, Math.PI * 2); ctx.clip();
             ctx.globalAlpha = alpha * rageBlend;
             ctx.drawImage(rageImg, x - portraitRadius, y - portraitRadius, portraitRadius * 2, portraitRadius * 2);
+            ctx.restore();
           }
           ctx.restore();
           ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); ctx.strokeStyle = this.heavyInjury ? '#ff0000' : style.borderColor; ctx.lineWidth = this.isClone ? style.borderWidth * 0.75 : style.borderWidth; ctx.stroke(); ctx.closePath();
+          if (rageBlend > 0 && !diagnosticEffectsDisabled) heroCinematics.drawFrenzyArmorPlates(ctx, img, x, y, drawRadius, rageBlend);
         } else {
           ctx.beginPath(); ctx.arc(x, y, drawRadius, 0, Math.PI * 2); const grad = ctx.createRadialGradient(x - drawRadius * 0.3, y - drawRadius * 0.3, drawRadius * 0.1, x, y, drawRadius); grad.addColorStop(0, style.innerGradient[0]); grad.addColorStop(1, style.innerGradient[1]); ctx.fillStyle = grad; ctx.fill(); ctx.strokeStyle = this.heavyInjury ? '#ff0000' : style.borderColor; ctx.lineWidth = this.isClone ? style.borderWidth * 0.75 : style.borderWidth; ctx.stroke(); ctx.closePath();
           drawRoleDecoration(this, x, y, drawRadius);
@@ -2144,6 +2159,7 @@
         if (ed < nearestDist) { nearestDist = ed; nearestAngle = Math.atan2(ey, ex); }
       }
       const baseAngle = nearestAngle;
+      let struck = false;
       for (const b of balls) {
         if (b === ball || b.isClone || b.playerTag === ball.playerTag) continue;
         const ex = b.x - bx, ey = b.y - by, ed = Math.sqrt(ex * ex + ey * ey);
@@ -2156,9 +2172,10 @@
           applyDamage(ball, b, dmg, null, 'sword');
           if (!ONLINE_MODE) ball.addEnergy(ENERGY_PER_HIT);
           refreshFrenzyStacks(ball, b);
+          struck = true;
         }
       }
-      swordFlashEffects.push({ ownerTag: ball.playerTag, angle: baseAngle, life: 12, swingPhase: 0 });
+      if (struck) swordFlashEffects.push({ ownerTag: ball.playerTag, angle: baseAngle, life: 9, swingPhase: 0 });
       ball.swordCooldown = SWORD_COOLDOWN;
     }
 
@@ -2363,20 +2380,17 @@
       ctx.restore();
     }
 
-    function drawSwordWeapon(cx, cy, angle, progress, alpha) {
-      ctx.save(); ctx.globalAlpha = alpha * .72;
-      ctx.beginPath(); ctx.arc(cx, cy, 160, angle - .62, angle + .62);
-      ctx.strokeStyle = '#ff4c3b'; ctx.lineWidth = 12 * (1 - progress * .55); ctx.stroke();
-      ctx.beginPath(); ctx.arc(cx, cy, 169, angle - .50, angle + .50);
-      ctx.strokeStyle = '#ffd0a2'; ctx.lineWidth = 3; ctx.stroke();
+    function drawFrenzySlash(cx, cy, angle, progress, alpha) {
+      // 命中瞬間才出現的月牙斬，不讓實體武器長時間突出球體。
+      const radius = 145 + progress * 14;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(cx, cy, radius, angle - .57, angle + .57);
+      ctx.strokeStyle = 'rgba(255, 66, 47, .72)'; ctx.lineWidth = 17 * (1 - progress * .58); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy, radius + 4, angle - .46, angle + .48);
+      ctx.strokeStyle = 'rgba(255, 231, 183, .95)'; ctx.lineWidth = 3; ctx.stroke();
       ctx.restore();
-      const gripX = cx + Math.cos(angle) * 42, gripY = cy + Math.sin(angle) * 42;
-      if (!heroCinematics.drawFrenzySword(ctx, gripX, gripY, angle, 166, alpha)) {
-        ctx.save(); ctx.globalAlpha = alpha; ctx.translate(gripX, gripY); ctx.rotate(angle);
-        ctx.fillStyle = '#381e21'; ctx.fillRect(-22, -5, 30, 10);
-        ctx.fillStyle = '#ff6052'; ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(152, 0); ctx.lineTo(0, 12); ctx.fill();
-        ctx.restore();
-      }
     }
 
     function update() {
@@ -2620,12 +2634,6 @@
             ctx.restore();
           }
           ball.drawAt(renderedPosition.x, renderedPosition.y, 1, alpha);
-          if (ball.roleId === 'frenzy' && !ball.isClone && !diagnosticEffectsDisabled && !swordFlashEffects.some(effect => effect.ownerTag === ball.playerTag)) {
-            const opponent = getMainBall(ball.playerTag === 'p1' ? 'p2' : 'p1');
-            const target = opponent ? getRenderedBallPosition(opponent) : null;
-            const targetAngle = target ? Math.atan2(target.y - renderedPosition.y, target.x - renderedPosition.x) : 0;
-            heroCinematics.drawFrenzyIdle(ctx, renderedPosition.x, renderedPosition.y, ball.radius, targetAngle, currentTime, ball.frenzyVisualBlend, LOW_POWER_RENDERING);
-          }
         }
         for (let p of projectiles) p.draw();
 
@@ -2633,13 +2641,13 @@
           const ef = swordFlashEffects[i];
           if (!timeStopState.active) {
             ef.life -= (deltaTime / TIME_STEP);
-            ef.swingPhase = Math.max(0, 1 - (ef.life / 12));
+            ef.swingPhase = Math.max(0, 1 - (ef.life / 9));
           }
           if (ef.life <= 0) { swordFlashEffects.splice(i, 1); continue; }
           const ownerBall = getMainBall(ef.ownerTag); if (!ownerBall) { swordFlashEffects.splice(i, 1); continue; }
           const ownerPosition = getRenderedBallPosition(ownerBall);
-          const cx = ownerPosition.x, cy = ownerPosition.y, alpha = Math.max(0, ef.life / 12), swingOffset = (ef.swingPhase - 0.5) * (Math.PI / 2.3), drawAngle = ef.angle + swingOffset;
-          drawSwordWeapon(cx, cy, drawAngle, ef.swingPhase, alpha);
+          const cx = ownerPosition.x, cy = ownerPosition.y, alpha = Math.max(0, ef.life / 9), swingOffset = (ef.swingPhase - 0.5) * (Math.PI / 2.3), drawAngle = ef.angle + swingOffset;
+          drawFrenzySlash(cx, cy, drawAngle, ef.swingPhase, alpha);
         }
         drawTimeStopDomain();
 

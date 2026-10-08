@@ -12,15 +12,14 @@ const HeroCinematics = require('../public/hero-cinematics.js');
 
 test('Frenzy assets load only when selected, and an ultimate queues once', () => {
   const cinematics = new HeroCinematics();
-  assert.equal(cinematics.frenzyBlade, null);
+  assert.equal(cinematics.frenzyAwakened, null);
   cinematics.prepare(['tank']);
-  assert.equal(cinematics.frenzyBlade, null);
+  assert.equal(cinematics.frenzyAwakened, null);
   cinematics.prepare(['frenzy']);
-  assert.match(cinematics.frenzyBlade.src, /frenzy-blade\.webp$/);
   assert.match(cinematics.frenzyAwakened.src, /frenzy-awakened\.webp$/);
-  const firstBlade = cinematics.frenzyBlade;
+  const firstAwakened = cinematics.frenzyAwakened;
   cinematics.prepare(['frenzy']);
-  assert.equal(cinematics.frenzyBlade, firstBlade);
+  assert.equal(cinematics.frenzyAwakened, firstAwakened);
 
   const ball = { playerTag: 'p1', roleId: 'frenzy', ballImageObj: new FakeImage(), usesCustomImage: false };
   cinematics.playFrenzy(ball);
@@ -32,4 +31,26 @@ test('Frenzy assets load only when selected, and an ultimate queues once', () =>
   assert.equal(cinematics.getFrenzyAwakenedImage(ball), null);
   cinematics.reset();
   assert.equal(cinematics.active, null);
+});
+
+test('Frenzy armor stays closed at rest and draws four moving plates during ultimate', () => {
+  const cinematics = new HeroCinematics();
+  const calls = [];
+  const ctx = {
+    globalAlpha: 1,
+    save() { calls.push('save'); },
+    restore() { calls.push('restore'); },
+    translate(x, y) { calls.push(['translate', x, y]); },
+    rotate(angle) { calls.push(['rotate', angle]); },
+    beginPath() {}, arc() {}, closePath() {}, clip() {},
+    drawImage() { calls.push('drawImage'); },
+  };
+  const image = new FakeImage();
+
+  cinematics.drawFrenzyArmorPlates(ctx, image, 100, 100, 50, 0);
+  assert.equal(calls.length, 0);
+  cinematics.drawFrenzyArmorPlates(ctx, image, 100, 100, 50, 1);
+  assert.equal(calls.filter(call => call === 'drawImage').length, 4);
+  assert.equal(calls.filter(call => Array.isArray(call) && call[0] === 'translate').length, 4);
+  assert.ok(calls.some(call => Array.isArray(call) && call[0] === 'translate' && call[1] !== 100 && call[2] !== 100));
 });
